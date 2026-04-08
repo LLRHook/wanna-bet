@@ -1,16 +1,34 @@
 # Wanna Bet Bot
 
-A Discord gambling-economy bot for server-wide fun. Manages a per-guild virtual currency, two-sided bet pools with escrow, an elected admin system, and a full suite of slash commands.
+[![CI](https://github.com/llrhook/wanna-bet/actions/workflows/ci.yml/badge.svg)](https://github.com/llrhook/wanna-bet/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Node](https://img.shields.io/badge/node-%E2%89%A520-green.svg)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/typescript-strict-3178C6.svg)](https://www.typescriptlang.org/)
+[![discord.js](https://img.shields.io/badge/discord.js-v14-7289da.svg)](https://discord.js.org/)
 
-## Tech Stack
+A Discord gambling-economy bot for server-wide fun. Per-guild virtual currency, two-sided bet pools with escrow, an elected admin system, and a full slash command suite — all in TypeScript with a tiny SQLite footprint.
+
+## Features
+
+- **Two-sided bet pools** — anyone can `/wanna-bet`, define Side A and Side B with custom labels, and let other players join either side. Winnings split proportionally to stake.
+- **Honor-system resolution** — participants confirm or dispute the outcome via DM buttons. Disputes stall the bet until the elected admin force-resolves.
+- **Elected admin** — the bank can't be touched until players hold an in-server vote. 1-hour election window, plurality wins, ties broken by random pick. Admin can grant, seize, force-resolve, cancel, and ban — but cannot print money or change rates.
+- **Closed economy with controlled inflation** — players start with $100, get $5/day, the bank seeds $25/week up to a player-count cap. Every bet pays a fee to the bank. No magic money.
+- **Multi-guild safe** — every query is scoped by guild ID. One deploy can serve many servers, each with its own economy.
+- **Per-player escrow** — wagers are debited the moment you join a bet, not at resolution. No double-spending across simultaneous bets.
+- **Crash-safe restart recovery** — open elections re-schedule their finalization timers; pending bet resolution buttons re-attach their collectors on every per-participant DM.
+- **Per-player stats** — wins, losses, neithers, total wagered, net P/L, biggest single win/loss, current streak.
+- **Audit log** — every bet, every admin action, every grant, recorded to SQLite and optionally posted to a configured Discord channel.
+
+## Tech stack
 
 - **Runtime**: Node.js v20+ (tested on v25.9.0)
 - **Language**: TypeScript (strict mode)
 - **Discord**: discord.js v14
-- **Database**: better-sqlite3 (WAL mode, single process)
+- **Database**: better-sqlite3 in WAL mode, single connection
 - **Scheduler**: node-cron
-- **Process Manager**: pm2
 - **Logger**: pino
+- **Deploy**: Docker (multi-stage, ~200MB image) or pm2 directly
 
 ## Setup
 
@@ -299,6 +317,18 @@ SQLite in WAL mode at `data/wanna-bet.db`. All monetary values stored as integer
 - Bet IDs are 4-character uppercase alphanumeric (e.g., `A3F7`).
 - Multi-guild safe: all queries are scoped by `guild_id`.
 
+## Contributing
+
+Pull requests welcome. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for setup, conventions, and the architectural invariants you should know about before touching any money-handling code.
+
+For security issues, please follow the disclosure process in [`SECURITY.md`](SECURITY.md) — do not open public GitHub issues for vulnerabilities.
+
+## Known limitations
+
+- **Docker Desktop on macOS** introduces multi-second WebSocket latency to Discord's gateway, which causes interactions to expire before the bot can acknowledge them. Use native `npm run dev` or `npm start` for local testing on Mac. Docker on Linux (your VPS) is fine.
+- **No automated tests** — the bot is tested manually against a real Discord server. CI runs `npm run build` to catch type errors.
+- **Global slash commands** — commands are registered application-wide, which means they take up to ~1 hour to propagate to all guilds the FIRST time. Subsequent updates are near-instant.
+
 ## License
 
-MIT
+MIT — see [`LICENSE`](LICENSE).

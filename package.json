@@ -1,8 +1,30 @@
 {
   "name": "wanna-bet",
   "version": "1.0.0",
-  "description": "Discord gambling economy bot",
+  "description": "A Discord gambling economy bot — per-guild virtual currency, two-sided bet pools with escrow, an elected admin system, and a full slash command suite.",
   "main": "dist/index.js",
+  "author": "Victor Ivanov <victor.n.ivanov@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/llrhook/wanna-bet.git"
+  },
+  "homepage": "https://github.com/llrhook/wanna-bet#readme",
+  "bugs": {
+    "url": "https://github.com/llrhook/wanna-bet/issues"
+  },
+  "keywords": [
+    "discord",
+    "discord-bot",
+    "discord-js",
+    "typescript",
+    "bot",
+    "gambling",
+    "betting",
+    "economy",
+    "sqlite",
+    "better-sqlite3"
+  ],
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",

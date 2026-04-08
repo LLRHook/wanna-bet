@@ -1,5 +1,7 @@
 # Secrets
 .env
+.env.*
+!.env.example
 
 # Build output
 dist/
@@ -8,6 +10,7 @@ dist/
 data/*.db
 data/*.db-shm
 data/*.db-wal
+backups/
 
 # Logs
 logs/*.log
@@ -19,9 +22,18 @@ node_modules/
 # PM2 logs
 .pm2/
 
-# OS files
+# OS / editor
 .DS_Store
 Thumbs.db
+.vscode/
+.idea/
+*.swp
 
 # TypeScript build info
 *.tsbuildinfo
+
+# Orchestration scratch (planner output, not part of the source tree)
+.orchestrate/
+
+# Test coverage
+coverage/
