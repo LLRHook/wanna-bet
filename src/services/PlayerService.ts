@@ -126,7 +126,7 @@ export function registerPlayer(
   if (!result.success) {
     // Bank might be empty; give directly without bank deduction for initial registration
     logger.warn({ guildId, userId }, 'Bank insufficient for $100 registration grant; granting directly');
-    db.prepare<[number, string, string]>(
+    db.prepare<[string, string]>(
       `UPDATE players SET balance = balance + 10000 WHERE guild_id = ? AND user_id = ?`
     ).run(guildId, userId);
   }
@@ -174,7 +174,7 @@ export function unregisterPlayer(
   }
 
   const now = Date.now();
-  db.prepare<[number, number, string, string]>(
+  db.prepare<[number, string, string]>(
     `UPDATE players SET status='inactive', prior_balance=balance, last_active_at=?
      WHERE guild_id=? AND user_id=?`
   ).run(now, guildId, userId);
