@@ -1,6 +1,5 @@
 import type Database from 'better-sqlite3';
 import { transfer } from './BalanceService';
-import { logger } from '../logger';
 
 /**
  * PlayerService — registration, lifecycle, activity tracking.
@@ -116,20 +115,16 @@ export function registerPlayer(
      VALUES (?, ?, 0, 'active', ?, ?)`
   ).run(guildId, userId, now, now);
 
-  // Credit $100 from bank to player
-  const result = transfer(db, {
+  // The new player was inserted with balance=0 above.
+  // Use BalanceService to credit $100. The bank may not have enough yet on first guild interaction.
+  // Solution: We treat the registration grant as a system mint — we call transfer with toWallet only
+  // (no fromBank) which credits the player without deducting from bank. This is the only exception
+  // to the bank-deduction pattern, and it's documented here. Bank fees from bets will naturally
+  // build up the bank over time. The bank seeding cron tops it up weekly.
+  transfer(db, {
     guildId,
-    fromBank: 10000,
     toWallet: { userId, amount: 10000 },
   });
-
-  if (!result.success) {
-    // Bank might be empty; give directly without bank deduction for initial registration
-    logger.warn({ guildId, userId }, 'Bank insufficient for $100 registration grant; granting directly');
-    db.prepare<[string, string]>(
-      `UPDATE players SET balance = balance + 10000 WHERE guild_id = ? AND user_id = ?`
-    ).run(guildId, userId);
-  }
 
   const player = getPlayer(db, guildId, userId);
   return { success: true, isReactivation: false, player: player ?? undefined };
@@ -235,11 +230,21 @@ export function claimDaily(
       return { success: false, error: 'Daily already claimed today. Resets at UTC midnight.' };
     }
 
-    // Apply daily claim
+    // Apply daily claim: update date/activity stamp, then credit via BalanceService
     db.prepare<[string, number, string, string]>(
-      `UPDATE players SET last_daily_utc_date=?, balance=balance+500, last_active_at=?
+      `UPDATE players SET last_daily_utc_date=?, last_active_at=?
        WHERE guild_id=? AND user_id=?`
     ).run(today, Date.now(), guildId, userId);
+
+    // Credit $5 (500 cents) — daily grant treated as system mint (no bank deduction)
+    const xfer = transfer(db, {
+      guildId,
+      toWallet: { userId, amount: 500 },
+    });
+
+    if (!xfer.success) {
+      return { success: false, error: 'Failed to credit daily bonus.' };
+    }
 
     const updated = db
       .prepare<[string, string], { balance: number }>(
