@@ -9,10 +9,20 @@ import {
   Client,
   GatewayIntentBits,
   Partials,
+  ChatInputCommandInteraction,
+  AutocompleteInteraction,
+  Interaction,
 } from 'discord.js';
 import { config } from './config';
 import { getDb, closeDb } from './db/connection';
 import { logger } from './logger';
+import { commandMap } from './commands/index';
+import { ensureGuild, getGuild } from './services/PlayerService';
+import { revokeAdmin, getOpenElection, scheduleElectionFinalization } from './services/ElectionService';
+import { auditSync } from './services/AuditService';
+import { startBankSeedingCron } from './cron/bankSeeding';
+import { startInactivitySweepCron } from './cron/inactivitySweep';
+import { reattachResolutionCollectors } from './commands/bets/resolve';
 
 // ─── Discord Client ────────────────────────────────────────────────────────────
 
@@ -24,21 +34,129 @@ export const client = new Client({
   partials: [Partials.GuildMember],
 });
 
+// ─── Interaction Dispatcher ────────────────────────────────────────────────────
+
+async function handleChatInputCommand(interaction: ChatInputCommandInteraction): Promise<void> {
+  const cmd = commandMap.get(interaction.commandName);
+  if (!cmd) {
+    await interaction.reply({ content: 'Unknown command.', ephemeral: true });
+    return;
+  }
+  await cmd.execute(interaction);
+}
+
+async function handleAutocomplete(interaction: AutocompleteInteraction): Promise<void> {
+  const cmd = commandMap.get(interaction.commandName);
+  if (!cmd?.autocomplete) return;
+  await cmd.autocomplete(interaction);
+}
+
+client.on('interactionCreate', async (interaction: Interaction) => {
+  try {
+    if (interaction.isChatInputCommand()) {
+      await handleChatInputCommand(interaction);
+      return;
+    }
+    if (interaction.isAutocomplete()) {
+      await handleAutocomplete(interaction);
+      return;
+    }
+    // Button interactions are handled by individual message collectors (resolve.ts)
+    // No global button handler needed here.
+  } catch (err) {
+    logger.error({ err, commandName: interaction.isCommand() ? interaction.commandName : 'N/A' }, 'Error handling interaction');
+
+    // Attempt to respond if we haven't already
+    if (interaction.isChatInputCommand()) {
+      try {
+        const errorReply = { content: 'An unexpected error occurred. Please try again.', ephemeral: true };
+        if (interaction.replied || interaction.deferred) {
+          await interaction.followUp(errorReply);
+        } else {
+          await interaction.reply(errorReply);
+        }
+      } catch {
+        // Ignore reply errors
+      }
+    }
+  }
+});
+
+// ─── guildMemberRemove — Admin auto-revoke ─────────────────────────────────────
+
+client.on('guildMemberRemove', async (member) => {
+  try {
+    const db = getDb();
+    const guildId = member.guild.id;
+    const userId = member.id;
+
+    const guild = getGuild(db, guildId);
+    if (!guild) return;
+
+    if (guild.current_admin_id === userId) {
+      revokeAdmin(db, guildId, userId);
+      auditSync(db, {
+        guildId,
+        actorId: userId,
+        actionType: 'ADMIN_REVOKED',
+        payload: { reason: 'member_left_server' },
+      });
+      logger.info({ guildId, userId }, 'Admin auto-revoked on member leave');
+    }
+  } catch (err) {
+    logger.error({ err }, 'Error in guildMemberRemove handler');
+  }
+});
+
 // ─── Startup ───────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
   // Open database (runs migration pragmas, validates connection)
-  getDb();
+  const db = getDb();
   logger.info('Database connection established.');
 
-  // Wire event handlers (filled in Commit 13)
-  client.once('ready', () => {
+  // Login to Discord
+  await client.login(config.discordToken);
+
+  // After ready: start crons, re-attach collectors, re-schedule elections
+  client.once('ready', async () => {
     logger.info(`Logged in as ${client.user?.tag ?? 'unknown'}`);
     logger.info(`Serving ${client.guilds.cache.size} guild(s).`);
-  });
 
-  // Login
-  await client.login(config.discordToken);
+    // Ensure guild rows exist for all cached guilds
+    for (const guild of client.guilds.cache.values()) {
+      ensureGuild(db, guild.id);
+    }
+
+    // Re-attach button collectors for proposed bets (restart recovery)
+    try {
+      await reattachResolutionCollectors();
+      logger.info('Resolution collectors re-attached.');
+    } catch (err) {
+      logger.error({ err }, 'Failed to re-attach resolution collectors');
+    }
+
+    // Re-schedule election finalization timers for any open elections
+    for (const guild of client.guilds.cache.values()) {
+      const openElection = getOpenElection(db, guild.id);
+      if (openElection) {
+        if (openElection.ends_at <= Date.now()) {
+          // Already expired — finalize immediately
+          const { finalizeElection } = await import('./services/ElectionService');
+          const result = await finalizeElection(db, client, guild.id, openElection.id);
+          logger.info({ guildId: guild.id, result }, 'Finalized expired election on startup');
+        } else {
+          scheduleElectionFinalization(db, client, guild.id, openElection);
+          logger.info({ guildId: guild.id, electionId: openElection.id }, 'Re-scheduled election timer');
+        }
+      }
+    }
+
+    // Start cron jobs
+    startBankSeedingCron(client);
+    startInactivitySweepCron(client);
+    logger.info('Cron jobs started: bank seeding (Sunday 00:00 UTC), inactivity sweep (daily 00:05 UTC).');
+  });
 }
 
 // ─── Graceful Shutdown ─────────────────────────────────────────────────────────
