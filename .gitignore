@@ -1,0 +1,27 @@
+# Secrets
+.env
+
+# Build output
+dist/
+
+# Database files
+data/*.db
+data/*.db-shm
+data/*.db-wal
+
+# Logs
+logs/*.log
+*.log
+
+# Node modules
+node_modules/
+
+# PM2 logs
+.pm2/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# TypeScript build info
+*.tsbuildinfo
