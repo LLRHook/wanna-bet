@@ -1,0 +1,29 @@
+import 'dotenv/config';
+
+/**
+ * Typed configuration object loaded from environment variables.
+ * Throws at startup if required variables are missing.
+ */
+
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return value;
+}
+
+export interface Config {
+  /** Discord bot token */
+  discordToken: string;
+  /** Discord guild ID for command registration */
+  guildId: string;
+  /** Node environment */
+  nodeEnv: string;
+}
+
+export const config: Config = {
+  discordToken: requireEnv('DISCORD_TOKEN'),
+  guildId: requireEnv('GUILD_ID'),
+  nodeEnv: process.env['NODE_ENV'] ?? 'development',
+};
