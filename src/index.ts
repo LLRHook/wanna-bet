@@ -37,6 +37,11 @@ async function handleChatInputCommand(interaction: ChatInputCommandInteraction):
     await interaction.reply({ embeds: [errorEmbed('Unknown command.')], ephemeral: true });
     return;
   }
+  // Defer immediately so we have 15 minutes to respond instead of 3 seconds.
+  // Every command body must use interaction.editReply (not reply) for its primary response.
+  if (!interaction.deferred && !interaction.replied) {
+    await interaction.deferReply();
+  }
   await cmd.execute(interaction);
 }
 

@@ -22,15 +22,14 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const result = registerPlayer(db, guildId, userId);
 
   if (!result.success) {
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [errorEmbed(result.error!)],
-      ephemeral: true,
     });
     return;
   }
 
   const balance = result.player?.balance ?? 0;
-  await interaction.reply({
+  await interaction.editReply({
     embeds: [registerEmbed(interaction.user, balance, result.isReactivation)],
   });
 

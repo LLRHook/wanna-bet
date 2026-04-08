@@ -45,9 +45,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   const player = getPlayer(db, guildId, userId);
   if (!player || player.status !== 'active') {
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [errorEmbed('You must be registered and active to join a bet.')],
-      ephemeral: true,
     });
     return;
   }
@@ -58,31 +57,28 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   const bet = getBet(db, guildId, betId);
   if (!bet) {
-    await interaction.reply({ embeds: [errorEmbed(`Bet #${betId} not found.`)], ephemeral: true });
+    await interaction.editReply({ embeds: [errorEmbed(`Bet #${betId} not found.`)] });
     return;
   }
 
   if (bet.status !== 'open') {
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [errorEmbed(`Bet #${betId} is not open (status: ${bet.status}).`)],
-      ephemeral: true,
     });
     return;
   }
 
   if (Date.now() > bet.window_closes_at) {
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [errorEmbed(`The betting window for #${betId} has closed.`)],
-      ephemeral: true,
     });
     return;
   }
 
   // Eligibility check
   if (bet.direct_opponent_id && bet.direct_opponent_id !== userId) {
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [errorEmbed('This is a direct bet — only the invited opponent can accept it.')],
-      ephemeral: true,
     });
     return;
   }
@@ -93,9 +89,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       const member = interaction.guild?.members.cache.get(userId)
         ?? await interaction.guild?.members.fetch(userId).catch(() => null);
       if (!member?.roles.cache.has(guild.gambler_role_id)) {
-        await interaction.reply({
+        await interaction.editReply({
           embeds: [errorEmbed('You need the gambler role to join this lobby bet.')],
-          ephemeral: true,
         });
         return;
       }
@@ -110,22 +105,20 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     // Default to opposite of initiator's side
     side = bet.initiator_side === 'A' ? 'B' : 'A';
   } else {
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [errorEmbed('Please specify which side (A or B) you want to bet on.')],
-      ephemeral: true,
     });
     return;
   }
 
   const wagerCents = dollarsToCents(amountDollars);
   if (player.balance < wagerCents) {
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [
         errorEmbed(
           `Insufficient balance. You need ${formatCents(wagerCents)} but have ${formatCents(player.balance)}.`
         ),
       ],
-      ephemeral: true,
     });
     return;
   }
@@ -139,7 +132,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   });
 
   if (!result.success) {
-    await interaction.reply({ embeds: [errorEmbed(result.error!)], ephemeral: true });
+    await interaction.editReply({ embeds: [errorEmbed(result.error!)] });
     return;
   }
 
@@ -160,7 +153,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     )
     .setFooter({ text: `Bet #${betId} • ${new Date().toISOString()}` });
 
-  await interaction.reply({ embeds: [embed] });
+  await interaction.editReply({ embeds: [embed] });
 
   touchPlayer(db, guildId, userId);
 

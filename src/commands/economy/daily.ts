@@ -21,14 +21,13 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const result = claimDaily(db, guildId, userId);
 
   if (!result.success) {
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [errorEmbed(result.error!)],
-      ephemeral: true,
     });
     return;
   }
 
-  await interaction.reply({
+  await interaction.editReply({
     embeds: [dailyEmbed(interaction.user, result.newBalance!)],
   });
 

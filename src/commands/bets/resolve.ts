@@ -326,9 +326,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   const player = getPlayer(db, guildId, userId);
   if (!player || player.status !== 'active') {
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [errorEmbed('You must be registered and active to propose a resolution.')],
-      ephemeral: true,
     });
     return;
   }
@@ -338,29 +337,27 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   const bet = getBet(db, guildId, betId);
   if (!bet) {
-    await interaction.reply({ embeds: [errorEmbed(`Bet #${betId} not found.`)], ephemeral: true });
+    await interaction.editReply({ embeds: [errorEmbed(`Bet #${betId} not found.`)] });
     return;
   }
 
   if (!['open', 'locked'].includes(bet.status)) {
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [errorEmbed(`Bet #${betId} cannot be proposed (status: ${bet.status}).`)],
-      ephemeral: true,
     });
     return;
   }
 
   if (!isParticipant(db, betId, guildId, userId)) {
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [errorEmbed('You must be a participant in this bet to propose a resolution.')],
-      ephemeral: true,
     });
     return;
   }
 
   const result = proposeResolution(db, guildId, betId, userId, outcome);
   if (!result.success) {
-    await interaction.reply({ embeds: [errorEmbed(result.error!)], ephemeral: true });
+    await interaction.editReply({ embeds: [errorEmbed(result.error!)] });
     return;
   }
 
@@ -388,7 +385,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     .setFooter({ text: `Bet #${betId} • ${new Date().toISOString()}` })
     .setTimestamp();
 
-  await interaction.reply({ embeds: [embed] });
+  await interaction.editReply({ embeds: [embed] });
 
   // If no other participants (only proposer), auto-settle immediately
   if (others.length === 0) {

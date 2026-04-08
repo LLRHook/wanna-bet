@@ -49,9 +49,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   if (sub === 'start') {
     const player = getPlayer(db, guildId, userId);
     if (!player || player.status !== 'active') {
-      await interaction.reply({
+      await interaction.editReply({
         embeds: [errorEmbed('You must be registered and active to start an election.')],
-        ephemeral: true,
       });
       return;
     }
@@ -59,7 +58,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     const result = startElection(db, guildId);
 
     if (!result.success || !result.election) {
-      await interaction.reply({ embeds: [errorEmbed(result.error!)], ephemeral: true });
+      await interaction.editReply({ embeds: [errorEmbed(result.error!)] });
       return;
     }
 
@@ -76,7 +75,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       )
       .setTimestamp();
 
-    await interaction.reply({ embeds: [embed] });
+    await interaction.editReply({ embeds: [embed] });
 
     // Schedule finalization timer
     scheduleElectionFinalization(db, client, guildId, result.election);
@@ -95,9 +94,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   if (sub === 'nominate') {
     const player = getPlayer(db, guildId, userId);
     if (!player || player.status !== 'active') {
-      await interaction.reply({
+      await interaction.editReply({
         embeds: [errorEmbed('You must be registered and active to nominate yourself.')],
-        ephemeral: true,
       });
       return;
     }
@@ -105,13 +103,13 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     const result = nominateCandidate(db, guildId, userId);
 
     if (!result.success) {
-      await interaction.reply({ embeds: [errorEmbed(result.error!)], ephemeral: true });
+      await interaction.editReply({ embeds: [errorEmbed(result.error!)] });
       return;
     }
 
     const endsTs = Math.floor(result.election!.ends_at / 1000);
 
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [
         new EmbedBuilder()
           .setColor(COLORS.PURPLE)
@@ -131,9 +129,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   if (sub === 'cast') {
     const player = getPlayer(db, guildId, userId);
     if (!player || player.status !== 'active') {
-      await interaction.reply({
+      await interaction.editReply({
         embeds: [errorEmbed('You must be registered and active to vote.')],
-        ephemeral: true,
       });
       return;
     }
@@ -143,14 +140,14 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     const result = castVote(db, guildId, userId, candidate.id);
 
     if (!result.success) {
-      await interaction.reply({ embeds: [errorEmbed(result.error!)], ephemeral: true });
+      await interaction.editReply({ embeds: [errorEmbed(result.error!)] });
       return;
     }
 
     const status = getElectionStatus(db, guildId);
     const endsTs = status.election ? Math.floor(status.election.ends_at / 1000) : 0;
 
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [
         new EmbedBuilder()
           .setColor(COLORS.PURPLE)
@@ -161,7 +158,6 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
           )
           .setTimestamp(),
       ],
-      ephemeral: true,
     });
 
     touchPlayer(db, guildId, userId);
@@ -172,7 +168,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     const status = getElectionStatus(db, guildId);
 
     if (!status.election) {
-      await interaction.reply({
+      await interaction.editReply({
         embeds: [
           new EmbedBuilder()
             .setColor(COLORS.PURPLE)
@@ -214,7 +210,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       )
       .setTimestamp();
 
-    await interaction.reply({ embeds: [embed] });
+    await interaction.editReply({ embeds: [embed] });
     return;
   }
 }

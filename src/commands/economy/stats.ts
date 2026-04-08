@@ -38,9 +38,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   const player = getPlayer(db, guildId, targetId);
   if (!player) {
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [errorEmbed(`<@${targetId}> is not registered in this guild's economy.`)],
-      ephemeral: true,
     });
     return;
   }
@@ -122,5 +121,5 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     )
     .setTimestamp();
 
-  await interaction.reply({ embeds: [embed] });
+  await interaction.editReply({ embeds: [embed] });
 }

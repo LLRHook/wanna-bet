@@ -104,9 +104,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   // Any guild member can look up history — no registration gate on lookup
   const player = getPlayer(db, guildId, targetId);
   if (!player) {
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [errorEmbed(`<@${targetId}> is not registered in this guild's economy.`)],
-      ephemeral: true,
     });
     return;
   }
@@ -152,10 +151,9 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const components =
     totalPages > 1 ? [paginationButtons(page, totalPages, prefix)] : [];
 
-  const message = await interaction.reply({
+  const message = await interaction.editReply({
     embeds: [embed],
     components,
-    fetchReply: true,
   });
 
   if (totalPages <= 1) return;

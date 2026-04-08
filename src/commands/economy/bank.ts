@@ -61,5 +61,5 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     )
     .setTimestamp();
 
-  await interaction.reply({ embeds: [embed] });
+  await interaction.editReply({ embeds: [embed] });
 }

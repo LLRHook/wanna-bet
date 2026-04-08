@@ -19,14 +19,13 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const player = getPlayer(db, guildId, userId);
 
   if (!player || player.status !== 'active') {
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [errorEmbed('You must be registered and active to check your balance. Use `/register` to get started.')],
-      ephemeral: true,
     });
     return;
   }
 
-  await interaction.reply({
+  await interaction.editReply({
     embeds: [balanceEmbed(interaction.user, player.balance)],
   });
 

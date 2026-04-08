@@ -21,9 +21,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   const player = getPlayer(db, guildId, userId);
   if (!player || player.status !== 'active') {
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [errorEmbed('You must be a registered active player to unregister.')],
-      ephemeral: true,
     });
     return;
   }
@@ -35,9 +34,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const result = unregisterPlayer(db, guildId, userId);
 
   if (!result.success) {
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [errorEmbed(result.error!)],
-      ephemeral: true,
     });
     return;
   }
@@ -53,7 +51,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     });
   }
 
-  await interaction.reply({
+  await interaction.editReply({
     embeds: [unregisterEmbed(interaction.user, result.finalBalance ?? 0)],
   });
 

@@ -30,9 +30,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   const player = getPlayer(db, guildId, userId);
   if (!player) {
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [errorEmbed('You must be registered to decline a bet.')],
-      ephemeral: true,
     });
     return;
   }
@@ -41,9 +40,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   const bet = getBet(db, guildId, betId);
   if (!bet || bet.direct_opponent_id !== userId) {
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [errorEmbed(`Bet #${betId} not found or you are not the invited opponent.`)],
-      ephemeral: true,
     });
     return;
   }
@@ -51,7 +49,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const result = declineBet(db, guildId, betId, userId);
 
   if (!result.success) {
-    await interaction.reply({ embeds: [errorEmbed(result.error!)], ephemeral: true });
+    await interaction.editReply({ embeds: [errorEmbed(result.error!)] });
     return;
   }
 
@@ -61,7 +59,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     .setDescription(`You declined bet #${betId}. The creator's wager (including fee) has been refunded.`)
     .setTimestamp();
 
-  await interaction.reply({ embeds: [embed] });
+  await interaction.editReply({ embeds: [embed] });
 
   // DM the creator
   try {

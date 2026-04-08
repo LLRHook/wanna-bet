@@ -68,9 +68,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   const player = getPlayer(db, guildId, userId);
   if (!player || player.status !== 'active') {
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [errorEmbed('You must be registered and active to create a bet.')],
-      ephemeral: true,
     });
     return;
   }
@@ -85,9 +84,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const isLobby = interaction.options.getBoolean('lobby') ?? false;
 
   if (opponent && isLobby) {
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [errorEmbed('Cannot specify both an opponent and lobby mode.')],
-      ephemeral: true,
     });
     return;
   }
@@ -95,9 +93,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   if (opponent) {
     const oppPlayer = getPlayer(db, guildId, opponent.id);
     if (!oppPlayer || oppPlayer.status !== 'active') {
-      await interaction.reply({
+      await interaction.editReply({
         embeds: [errorEmbed(`<@${opponent.id}> is not registered and active.`)],
-        ephemeral: true,
       });
       return;
     }
@@ -105,13 +102,12 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   const wagerCents = dollarsToCents(amountDollars);
   if (player.balance < wagerCents) {
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [
         errorEmbed(
           `Insufficient balance. You need ${formatCents(wagerCents)} but have ${formatCents(player.balance)}.`
         ),
       ],
-      ephemeral: true,
     });
     return;
   }
@@ -131,9 +127,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   });
 
   if (!result.success || !result.bet) {
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [errorEmbed(result.error ?? 'Failed to create bet.')],
-      ephemeral: true,
     });
     return;
   }
@@ -178,7 +173,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     });
   }
 
-  await interaction.reply({ embeds: [embed] });
+  await interaction.editReply({ embeds: [embed] });
 
   // DM opponent if direct bet
   if (opponent) {

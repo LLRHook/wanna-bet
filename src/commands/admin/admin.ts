@@ -94,9 +94,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const sub = interaction.options.getSubcommand(true);
 
   if (!isAdmin(db, guildId, userId)) {
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [errorEmbed('You must be the elected admin to use admin commands.')],
-      ephemeral: true,
     });
     return;
   }
@@ -108,9 +107,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
     const targetPlayer = getPlayer(db, guildId, target.id);
     if (!targetPlayer || targetPlayer.status !== 'active') {
-      await interaction.reply({
+      await interaction.editReply({
         embeds: [errorEmbed(`<@${target.id}> is not an active registered player.`)],
-        ephemeral: true,
       });
       return;
     }
@@ -119,9 +117,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       .prepare<[string], { balance: number }>('SELECT balance FROM bank WHERE guild_id=?')
       .get(guildId);
     if (!bankRow || bankRow.balance < amountCents) {
-      await interaction.reply({
+      await interaction.editReply({
         embeds: [errorEmbed(`Insufficient bank funds. Bank has ${formatCents(bankRow?.balance ?? 0)}.`)],
-        ephemeral: true,
       });
       return;
     }
@@ -133,13 +130,13 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     });
 
     if (!xfer.success) {
-      await interaction.reply({ embeds: [errorEmbed(xfer.error!)], ephemeral: true });
+      await interaction.editReply({ embeds: [errorEmbed(xfer.error!)] });
       return;
     }
 
     const newBalance = getPlayer(db, guildId, target.id)?.balance ?? 0;
 
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [
         new EmbedBuilder()
           .setColor(COLORS.PURPLE)
@@ -170,16 +167,14 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
     const targetPlayer = getPlayer(db, guildId, target.id);
     if (!targetPlayer) {
-      await interaction.reply({
+      await interaction.editReply({
         embeds: [errorEmbed(`<@${target.id}> is not registered.`)],
-        ephemeral: true,
       });
       return;
     }
     if (targetPlayer.balance < amountCents) {
-      await interaction.reply({
+      await interaction.editReply({
         embeds: [errorEmbed(`Player only has ${formatCents(targetPlayer.balance)}.`)],
-        ephemeral: true,
       });
       return;
     }
@@ -191,11 +186,11 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     });
 
     if (!xfer.success) {
-      await interaction.reply({ embeds: [errorEmbed(xfer.error!)], ephemeral: true });
+      await interaction.editReply({ embeds: [errorEmbed(xfer.error!)] });
       return;
     }
 
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [
         new EmbedBuilder()
           .setColor(COLORS.PURPLE)
@@ -224,13 +219,12 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
     const bet = getBet(db, guildId, betId);
     if (!bet) {
-      await interaction.reply({ embeds: [errorEmbed(`Bet #${betId} not found.`)], ephemeral: true });
+      await interaction.editReply({ embeds: [errorEmbed(`Bet #${betId} not found.`)] });
       return;
     }
     if (['resolved', 'cancelled'].includes(bet.status)) {
-      await interaction.reply({
+      await interaction.editReply({
         embeds: [errorEmbed(`Bet #${betId} is already ${bet.status}.`)],
-        ephemeral: true,
       });
       return;
     }
@@ -238,16 +232,15 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     // Re-verify admin inside transaction (race protection)
     const currentGuild = getGuild(db, guildId);
     if (currentGuild?.current_admin_id !== userId) {
-      await interaction.reply({
+      await interaction.editReply({
         embeds: [errorEmbed('You are no longer the admin.')],
-        ephemeral: true,
       });
       return;
     }
 
     const settleResult = settleBet(db, guildId, betId, outcome, userId);
     if (!settleResult.success) {
-      await interaction.reply({ embeds: [errorEmbed(settleResult.error!)], ephemeral: true });
+      await interaction.editReply({ embeds: [errorEmbed(settleResult.error!)] });
       return;
     }
 
@@ -260,7 +253,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       .map((p) => `<@${p.userId}>: +${formatCents(p.payout)}`)
       .join('\n');
 
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [
         new EmbedBuilder()
           .setColor(COLORS.PURPLE)
@@ -289,7 +282,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
     const cancelResult = adminCancelBet(db, guildId, betId);
     if (!cancelResult.success) {
-      await interaction.reply({ embeds: [errorEmbed(cancelResult.error!)], ephemeral: true });
+      await interaction.editReply({ embeds: [errorEmbed(cancelResult.error!)] });
       return;
     }
 
@@ -297,7 +290,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       .map((r) => `<@${r.userId}>: +${formatCents(r.amount)} (stake only)`)
       .join('\n');
 
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [
         new EmbedBuilder()
           .setColor(COLORS.GRAY)
@@ -345,16 +338,14 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     const targetPlayer = getPlayer(db, guildId, target.id);
 
     if (!targetPlayer) {
-      await interaction.reply({
+      await interaction.editReply({
         embeds: [errorEmbed(`<@${target.id}> is not registered.`)],
-        ephemeral: true,
       });
       return;
     }
     if (targetPlayer.status === 'banned') {
-      await interaction.reply({
+      await interaction.editReply({
         embeds: [errorEmbed(`<@${target.id}> is already banned.`)],
-        ephemeral: true,
       });
       return;
     }
@@ -363,7 +354,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       "UPDATE players SET status='banned' WHERE guild_id=? AND user_id=?"
     ).run(guildId, target.id);
 
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [
         new EmbedBuilder()
           .setColor(COLORS.RED)
@@ -388,9 +379,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     const targetPlayer = getPlayer(db, guildId, target.id);
 
     if (!targetPlayer || targetPlayer.status !== 'banned') {
-      await interaction.reply({
+      await interaction.editReply({
         embeds: [errorEmbed(`<@${target.id}> is not banned.`)],
-        ephemeral: true,
       });
       return;
     }
@@ -399,7 +389,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       "UPDATE players SET status='active' WHERE guild_id=? AND user_id=?"
     ).run(guildId, target.id);
 
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [
         new EmbedBuilder()
           .setColor(COLORS.GREEN)

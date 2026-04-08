@@ -52,7 +52,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       .all(guildId);
 
     if (rows.length === 0) {
-      await interaction.reply({
+      await interaction.editReply({
         embeds: [
           new EmbedBuilder()
             .setColor(COLORS.BLUE)
@@ -96,6 +96,6 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       embed.setFooter({ text: `Showing 10 of ${rows.length} active bets.` });
     }
 
-    await interaction.reply({ embeds: [embed] });
+    await interaction.editReply({ embeds: [embed] });
   }
 }

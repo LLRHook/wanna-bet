@@ -42,9 +42,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   // Permission check
   if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [errorEmbed('You need the Manage Guild permission to use setup commands.')],
-      ephemeral: true,
     });
     return;
   }
@@ -58,7 +57,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       'UPDATE guilds SET gambler_role_id=? WHERE guild_id=?'
     ).run(role.id, guildId);
 
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [
         new EmbedBuilder()
           .setColor(COLORS.BLUE)
@@ -78,7 +77,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       'UPDATE guilds SET audit_channel_id=? WHERE guild_id=?'
     ).run(channel.id, guildId);
 
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [
         new EmbedBuilder()
           .setColor(COLORS.BLUE)
