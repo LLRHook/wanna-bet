@@ -1,7 +1,16 @@
 import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
+  EmbedBuilder,
 } from 'discord.js';
+import { getDb } from '../../db/connection';
+import { getPlayer, ensureGuild, touchPlayer } from '../../services/PlayerService';
+import { createBet } from '../../services/BetService';
+import { audit } from '../../services/AuditService';
+import { client } from '../../index';
+import { errorEmbed } from '../../ui/embeds';
+import { COLORS } from '../../ui/colors';
+import { formatCents, dollarsToCents } from '../../services/BalanceService';
 
 export const data = new SlashCommandBuilder()
   .setName('wanna-bet')
@@ -30,7 +39,10 @@ export const data = new SlashCommandBuilder()
     opt.setName('side-b-label').setDescription('Label for Side B.').setRequired(true)
   )
   .addUserOption((opt) =>
-    opt.setName('opponent').setDescription('Direct 1v1 opponent (leave blank for open/lobby).').setRequired(false)
+    opt
+      .setName('opponent')
+      .setDescription('Direct 1v1 opponent (leave blank for open/lobby).')
+      .setRequired(false)
   )
   .addIntegerOption((opt) =>
     opt
@@ -41,10 +53,174 @@ export const data = new SlashCommandBuilder()
       .setMaxValue(1440)
   )
   .addBooleanOption((opt) =>
-    opt.setName('lobby').setDescription('Open to all registered players with the gambler role.').setRequired(false)
+    opt
+      .setName('lobby')
+      .setDescription('Open to all registered players with the gambler role.')
+      .setRequired(false)
   );
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  // Implemented in Commit 7
-  await interaction.reply({ content: 'Bet commands not yet implemented.', ephemeral: true });
+  const db = getDb();
+  const guildId = interaction.guildId!;
+  const userId = interaction.user.id;
+
+  ensureGuild(db, guildId);
+
+  const player = getPlayer(db, guildId, userId);
+  if (!player || player.status !== 'active') {
+    await interaction.reply({
+      embeds: [errorEmbed('You must be registered and active to create a bet.')],
+      ephemeral: true,
+    });
+    return;
+  }
+
+  const description = interaction.options.getString('description', true);
+  const amountDollars = interaction.options.getNumber('amount', true);
+  const mySide = interaction.options.getString('my-side', true) as 'A' | 'B';
+  const sideALabel = interaction.options.getString('side-a-label', true);
+  const sideBLabel = interaction.options.getString('side-b-label', true);
+  const opponent = interaction.options.getUser('opponent');
+  const windowMinutes = interaction.options.getInteger('window-minutes') ?? 10;
+  const isLobby = interaction.options.getBoolean('lobby') ?? false;
+
+  if (opponent && isLobby) {
+    await interaction.reply({
+      embeds: [errorEmbed('Cannot specify both an opponent and lobby mode.')],
+      ephemeral: true,
+    });
+    return;
+  }
+
+  if (opponent) {
+    const oppPlayer = getPlayer(db, guildId, opponent.id);
+    if (!oppPlayer || oppPlayer.status !== 'active') {
+      await interaction.reply({
+        embeds: [errorEmbed(`<@${opponent.id}> is not registered and active.`)],
+        ephemeral: true,
+      });
+      return;
+    }
+  }
+
+  const wagerCents = dollarsToCents(amountDollars);
+  if (player.balance < wagerCents) {
+    await interaction.reply({
+      embeds: [
+        errorEmbed(
+          `Insufficient balance. You need ${formatCents(wagerCents)} but have ${formatCents(player.balance)}.`
+        ),
+      ],
+      ephemeral: true,
+    });
+    return;
+  }
+
+  const result = createBet(db, {
+    guildId,
+    channelId: interaction.channelId,
+    creatorId: userId,
+    description,
+    sideALabel,
+    sideBLabel,
+    initiatorSide: mySide,
+    wagerDollars: amountDollars,
+    opponentId: opponent?.id,
+    isLobby,
+    windowMinutes,
+  });
+
+  if (!result.success || !result.bet) {
+    await interaction.reply({
+      embeds: [errorEmbed(result.error ?? 'Failed to create bet.')],
+      ephemeral: true,
+    });
+    return;
+  }
+
+  const bet = result.bet;
+  const fee = result.fee!;
+  const netStake = result.netStake!;
+  const windowTs = Math.floor(bet.window_closes_at / 1000);
+
+  const embed = new EmbedBuilder()
+    .setColor(COLORS.GOLD)
+    .setTitle(`Bet Created — #${bet.bet_id}`)
+    .addFields(
+      { name: 'Description', value: description, inline: false },
+      {
+        name: `Side A${mySide === 'A' ? ' ← (You)' : ''}`,
+        value: sideALabel,
+        inline: true,
+      },
+      {
+        name: `Side B${mySide === 'B' ? ' ← (You)' : ''}`,
+        value: sideBLabel,
+        inline: true,
+      },
+      { name: '\u200b', value: '\u200b', inline: true },
+      { name: 'Your Wager', value: formatCents(wagerCents), inline: true },
+      { name: 'Fee', value: formatCents(fee), inline: true },
+      { name: 'Net Stake', value: formatCents(netStake), inline: true },
+      { name: 'Window Closes', value: `<t:${windowTs}:R>`, inline: true },
+      { name: 'Initiator', value: `<@${userId}>`, inline: true }
+    )
+    .setFooter({ text: `Bet #${bet.bet_id} • ${new Date().toISOString()}` });
+
+  if (opponent) {
+    embed.addFields({ name: 'Invited Opponent', value: `<@${opponent.id}>`, inline: true });
+  }
+  if (isLobby) {
+    embed.addFields({
+      name: 'Type',
+      value: 'Lobby — open to registered players with the gambler role',
+      inline: false,
+    });
+  }
+
+  await interaction.reply({ embeds: [embed] });
+
+  // DM opponent if direct bet
+  if (opponent) {
+    try {
+      await opponent.send({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(COLORS.GOLD)
+            .setTitle(`You've been challenged! — Bet #${bet.bet_id}`)
+            .setDescription(
+              `<@${userId}> has invited you to a bet in **${interaction.guild?.name ?? 'the server'}**.\n\n` +
+              `Use \`/accept bet-id:${bet.bet_id}\` to accept or \`/decline bet-id:${bet.bet_id}\` to decline.`
+            )
+            .addFields(
+              { name: 'Description', value: description },
+              { name: 'Their Side', value: `${mySide} (${mySide === 'A' ? sideALabel : sideBLabel})` },
+              { name: 'Your Side', value: `${mySide === 'A' ? 'B' : 'A'} (${mySide === 'A' ? sideBLabel : sideALabel})` },
+              { name: 'Window Closes', value: `<t:${windowTs}:R>` }
+            ),
+        ],
+      });
+    } catch {
+      // DMs closed — mention in channel
+      await interaction.followUp({
+        content: `<@${opponent.id}> You've been invited to bet #${bet.bet_id}! Use \`/accept bet-id:${bet.bet_id}\` or \`/decline bet-id:${bet.bet_id}\`.`,
+      });
+    }
+  }
+
+  touchPlayer(db, guildId, userId);
+
+  await audit(db, client, {
+    guildId,
+    actorId: userId,
+    actionType: 'BET_CREATED',
+    payload: {
+      betId: bet.bet_id,
+      description,
+      wagerCents,
+      fee,
+      isLobby,
+      opponentId: opponent?.id,
+    },
+  });
 }
