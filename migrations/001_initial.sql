@@ -69,7 +69,6 @@ CREATE TABLE IF NOT EXISTS bets (
                                          'resolved','cancelled')),
   proposed_outcome      TEXT    CHECK(proposed_outcome IN ('A','B','neither')),
   proposer_id           TEXT,
-  proposal_message_id   TEXT,                           -- Discord message ID for button collectors
   resolved_at           INTEGER,                        -- unix ms
   resolved_outcome      TEXT    CHECK(resolved_outcome IN ('A','B','neither')),
   resolver_id           TEXT,                           -- who actually settled it
@@ -108,6 +107,28 @@ CREATE INDEX IF NOT EXISTS idx_bp_bet
 
 CREATE INDEX IF NOT EXISTS idx_bp_user
   ON bet_participants(guild_id, user_id);
+
+-- ─── Bet Proposal Messages ────────────────────────────────────────────────────
+-- One row per participant per proposed bet, recording the Discord message ID
+-- that holds their Confirm/Dispute buttons. Used by reattachResolutionCollectors
+-- on bot restart to find every per-participant proposal message.
+-- (Replaces a single proposal_message_id column on bets, which only tracked the
+-- last DM sent and broke restart recovery for 3+ participant bets.)
+
+CREATE TABLE IF NOT EXISTS bet_proposal_messages (
+  bet_id      TEXT    NOT NULL,
+  guild_id    TEXT    NOT NULL,
+  user_id     TEXT    NOT NULL,
+  channel_id  TEXT    NOT NULL,                          -- DM channel id or fallback guild channel id
+  message_id  TEXT    NOT NULL,
+  is_dm       INTEGER NOT NULL DEFAULT 1,                -- 1 = DM, 0 = channel fallback
+  created_at  INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000),
+  PRIMARY KEY (bet_id, guild_id, user_id),
+  FOREIGN KEY (bet_id, guild_id) REFERENCES bets(bet_id, guild_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_bpm_bet
+  ON bet_proposal_messages(bet_id, guild_id);
 
 -- ─── Resolution Confirmations ─────────────────────────────────────────────────
 -- Tracks each participant's Confirm/Dispute response to a resolution proposal.

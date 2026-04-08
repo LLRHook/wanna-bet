@@ -27,7 +27,6 @@ export interface BetRow {
   status: 'open' | 'locked' | 'proposed' | 'disputed' | 'resolved' | 'cancelled';
   proposed_outcome: 'A' | 'B' | 'neither' | null;
   proposer_id: string | null;
-  proposal_message_id: string | null;
   resolved_at: number | null;
   resolved_outcome: 'A' | 'B' | 'neither' | null;
   resolver_id: string | null;
