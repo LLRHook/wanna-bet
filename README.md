@@ -77,7 +77,10 @@ This registers all slash commands to your guild instantly (guild-scoped, no 1-ho
 npm run dev
 ```
 
-**Production** (pm2):
+**Production**:
+
+For VPS deployment, use Docker — see the next section. The pm2 path below is the legacy alternative if Docker is unavailable.
+
 ```bash
 npm run build
 pm2 start ecosystem.config.js
@@ -89,6 +92,105 @@ pm2 save
 npm run build
 npm start
 ```
+
+## Docker Deployment (recommended for VPS)
+
+Single-command spin-up. Builds a multi-stage image (~200 MB), runs the bot as a non-root user, persists the SQLite database in a named volume, and survives host reboots.
+
+### Prerequisites
+
+- Docker 20.10+ and Docker Compose v2 on the VPS
+- A Discord bot token and guild ID (see Setup §1)
+
+### First-time setup on the VPS
+
+```bash
+# 1. Clone the repo
+git clone <your-repo-url> wanna-bet
+cd wanna-bet
+
+# 2. Create the .env file from the template and fill in real values
+cp .env.example .env
+nano .env   # set DISCORD_TOKEN and GUILD_ID
+
+# 3. Build and start (detached)
+docker compose up -d --build
+
+# 4. Register slash commands (one-time after deploy or after command changes)
+docker compose run --rm wannabet node dist/commands/register.js
+```
+
+That's it. The bot is now running, will restart automatically on host reboot, and will survive `docker compose down` (data is in a named volume).
+
+### Day-to-day operations
+
+```bash
+# View live logs
+docker compose logs -f
+
+# Restart the bot
+docker compose restart
+
+# Stop the bot (data preserved)
+docker compose down
+
+# Stop the bot AND delete all data (destructive — use carefully)
+docker compose down -v
+
+# Status
+docker compose ps
+```
+
+### Updating after a code change
+
+```bash
+git pull
+docker compose up -d --build
+
+# Re-register slash commands if you changed any /command signatures
+docker compose run --rm wannabet node dist/commands/register.js
+```
+
+The migration script runs automatically on every start. It is idempotent (`CREATE TABLE IF NOT EXISTS`) so re-running it is safe.
+
+### Backups
+
+The SQLite database lives in the `wannabet-data` named volume. Use `sqlite3 .backup` (online, atomic, safe even while the bot is running) and a bind-mounted host directory:
+
+```bash
+# Snapshot to ./backups/ on the host
+docker compose exec wannabet sqlite3 /app/data/wanna-bet.db ".backup /app/backups/wanna-bet-$(date +%F).db"
+ls -la backups/
+```
+
+Restore by stopping the bot, replacing the volume contents, and starting again:
+
+```bash
+docker compose down
+docker run --rm -v wanna-bet_wannabet-data:/data -v "$PWD/backups:/backup" alpine \
+  cp /backup/wanna-bet-2026-01-15.db /data/wanna-bet.db
+docker compose up -d
+```
+
+### Inspecting the running container
+
+```bash
+# Open a shell inside the container
+docker compose exec wannabet sh
+
+# Run an ad-hoc sqlite3 query
+docker compose exec wannabet sqlite3 /app/data/wanna-bet.db "SELECT COUNT(*) FROM players"
+
+# Check the bot's effective config (DISCORD_TOKEN is masked by Discord on output)
+docker compose exec wannabet env | grep -E '^(NODE_ENV|GUILD_ID)='
+```
+
+### Notes
+
+- Bot runs as user `wannabet` (UID 1001) inside the container, not root.
+- SQLite database is in WAL mode and uses `sqlite3 .backup` for safe live backups — no need to stop the bot.
+- The `init: true` setting in `docker-compose.yml` ensures `SIGTERM` is forwarded to Node so graceful shutdown works (15-second grace period).
+- The image bundles `sqlite3` for ad-hoc queries and backups.
 
 ## Commands
 

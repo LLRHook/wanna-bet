@@ -1,0 +1,27 @@
+services:
+  wannabet:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: wanna-bet:latest
+    container_name: wannabet
+    restart: unless-stopped
+    # Tini PID 1 — forwards signals so SIGINT/SIGTERM reach Node cleanly.
+    init: true
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+    volumes:
+      # Persistent SQLite database (survives `docker compose down`).
+      - wannabet-data:/app/data
+      # Bot logs (named volume; tail with `docker compose logs -f`).
+      - wannabet-logs:/app/logs
+      # Bind-mounted backups dir for easy host access. Created by `docker compose up`.
+      - ./backups:/app/backups
+    # Give the bot 15s to flush its DB and disconnect from Discord on stop.
+    stop_grace_period: 15s
+
+volumes:
+  wannabet-data:
+  wannabet-logs:
