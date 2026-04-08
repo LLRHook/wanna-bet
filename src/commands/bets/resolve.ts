@@ -163,7 +163,7 @@ export function attachButtonCollector(
     const result = recordResolutionResponse(db, guildId, betId, participantId, response);
 
     if (!result.success) {
-      await btnInteraction.reply({ content: result.error, ephemeral: true });
+      await btnInteraction.reply({ embeds: [errorEmbed(result.error!)], ephemeral: true });
       return;
     }
 
@@ -446,31 +446,8 @@ export async function autocomplete(interaction: AutocompleteInteraction): Promis
 export async function reattachResolutionCollectors(): Promise<void> {
   const db = getDb();
 
-  interface ProposedBet {
-    bet_id: string;
-    guild_id: string;
-    proposal_message_id: string | null;
-    channel_id: string;
-    proposer_id: string | null;
-    proposed_outcome: string | null;
-    side_a_label: string;
-    side_b_label: string;
-    description: string;
-    initiator_side: string;
-    is_lobby: number;
-    direct_opponent_id: string | null;
-    window_minutes: number;
-    window_closes_at: number;
-    creator_id: string;
-    status: 'open' | 'locked' | 'proposed' | 'disputed' | 'resolved' | 'cancelled';
-    resolver_id: string | null;
-    resolved_at: number | null;
-    resolved_outcome: string | null;
-    created_at: number;
-  }
-
   const proposedBets = db
-    .prepare<[], ProposedBet>(
+    .prepare<[], BetRow>(
       `SELECT * FROM bets WHERE status='proposed' AND proposal_message_id IS NOT NULL`
     )
     .all();
@@ -489,7 +466,7 @@ export async function reattachResolutionCollectors(): Promise<void> {
         const dmChannel = await user.createDM();
         const message = await (dmChannel as DMChannel).messages.fetch(bet.proposal_message_id);
         if (message) {
-          attachButtonCollector(message, bet.bet_id, bet.guild_id, p.user_id, bet as unknown as BetRow);
+          attachButtonCollector(message, bet.bet_id, bet.guild_id, p.user_id, bet);
           logger.info({ betId: bet.bet_id, userId: p.user_id }, 'Re-attached resolution collector');
         }
       } catch (err) {

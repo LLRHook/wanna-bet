@@ -12,7 +12,6 @@ export interface CommandModule {
   autocomplete?: (interaction: import('discord.js').AutocompleteInteraction) => Promise<void>;
 }
 
-// Economy commands
 import * as register from './economy/register';
 import * as unregister from './economy/unregister';
 import * as balance from './economy/balance';
@@ -21,19 +20,13 @@ import * as bank from './economy/bank';
 import * as leaderboard from './economy/leaderboard';
 import * as stats from './economy/stats';
 import * as history from './economy/history';
-
-// Bet commands (added in Commit 7)
 import * as wannaBet from './bets/wannaBet';
 import * as accept from './bets/accept';
 import * as decline from './bets/decline';
 import * as resolve from './bets/resolve';
 import * as bets from './bets/bets';
-
-// Admin commands (added in Commit 9)
 import * as admin from './admin/admin';
 import * as setup from './admin/setup';
-
-// Election commands (added in Commit 10)
 import * as voteAdmin from './election/voteAdmin';
 
 export const commands: CommandModule[] = [

@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import { transfer, computeFee, dollarsToCents } from './BalanceService';
+import { transfer, computeFee, dollarsToCents, formatCents } from './BalanceService';
 import { logger } from '../logger';
 
 /**
@@ -133,7 +133,7 @@ export function createBet(db: Database.Database, params: CreateBetParams): Creat
     if (player.balance < wagerCents) {
       return {
         success: false,
-        error: `Insufficient balance. You need $${(wagerCents / 100).toFixed(2)} but have $${(player.balance / 100).toFixed(2)}.`,
+        error: `Insufficient balance. You need ${formatCents(wagerCents)} but have ${formatCents(player.balance)}.`,
       };
     }
 
@@ -246,7 +246,7 @@ export function joinBet(db: Database.Database, params: JoinBetParams): JoinBetRe
     if (player.balance < wagerCents) {
       return {
         success: false,
-        error: `Insufficient balance. You need $${(wagerCents / 100).toFixed(2)} but have $${(player.balance / 100).toFixed(2)}.`,
+        error: `Insufficient balance. You need ${formatCents(wagerCents)} but have ${formatCents(player.balance)}.`,
       };
     }
 

@@ -3,7 +3,6 @@ import {
   ChatInputCommandInteraction,
   AutocompleteInteraction,
   EmbedBuilder,
-  PermissionFlagsBits,
 } from 'discord.js';
 import { getDb } from '../../db/connection';
 import { getPlayer, getGuild, touchPlayer } from '../../services/PlayerService';
@@ -463,6 +462,3 @@ export async function autocomplete(interaction: AutocompleteInteraction): Promis
 
   await interaction.respond([]);
 }
-
-// Suppress unused import warning for PermissionFlagsBits (kept for future use)
-void PermissionFlagsBits;

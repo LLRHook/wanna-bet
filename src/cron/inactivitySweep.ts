@@ -1,4 +1,3 @@
-import type { Client } from 'discord.js';
 import cron from 'node-cron';
 import { getDb } from '../db/connection';
 import { auditSync } from '../services/AuditService';
@@ -25,7 +24,7 @@ interface InactiveCandidate {
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
-export function startInactivitySweepCron(_client: Client): cron.ScheduledTask {
+export function startInactivitySweepCron(): cron.ScheduledTask {
   return cron.schedule(
     '5 0 * * *', // Daily 00:05 UTC
     async () => {

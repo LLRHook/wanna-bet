@@ -4,6 +4,7 @@ import {
 } from 'discord.js';
 import { getDb } from '../../db/connection';
 import { unregisterPlayer, getGuild, getPlayer } from '../../services/PlayerService';
+import { revokeAdmin } from '../../services/ElectionService';
 import { audit } from '../../services/AuditService';
 import { unregisterEmbed } from '../../ui/embeds';
 import { errorEmbed } from '../../ui/embeds';
@@ -43,9 +44,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   // Auto-revoke admin if applicable
   if (isAdmin) {
-    db.prepare<[string]>(
-      `UPDATE guilds SET current_admin_id=NULL, vote_cooldown_waived=1 WHERE guild_id=?`
-    ).run(guildId);
+    revokeAdmin(db, guildId, userId);
     await audit(db, client, {
       guildId,
       actorId: userId,

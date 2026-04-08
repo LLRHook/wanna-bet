@@ -56,7 +56,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       return;
     }
 
-    const result = startElection(db, guildId, userId);
+    const result = startElection(db, guildId);
 
     if (!result.success || !result.election) {
       await interaction.reply({ embeds: [errorEmbed(result.error!)], ephemeral: true });

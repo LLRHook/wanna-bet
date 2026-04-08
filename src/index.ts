@@ -1,9 +1,3 @@
-/**
- * Wanna Bet Bot — entry point
- *
- * Boots the Discord client, opens the database, registers event handlers,
- * starts cron jobs, and handles graceful shutdown on SIGINT/SIGTERM.
- */
 import 'dotenv/config';
 import {
   Client,
@@ -23,6 +17,7 @@ import { auditSync } from './services/AuditService';
 import { startBankSeedingCron } from './cron/bankSeeding';
 import { startInactivitySweepCron } from './cron/inactivitySweep';
 import { reattachResolutionCollectors } from './commands/bets/resolve';
+import { errorEmbed } from './ui/embeds';
 
 // ─── Discord Client ────────────────────────────────────────────────────────────
 
@@ -39,7 +34,7 @@ export const client = new Client({
 async function handleChatInputCommand(interaction: ChatInputCommandInteraction): Promise<void> {
   const cmd = commandMap.get(interaction.commandName);
   if (!cmd) {
-    await interaction.reply({ content: 'Unknown command.', ephemeral: true });
+    await interaction.reply({ embeds: [errorEmbed('Unknown command.')], ephemeral: true });
     return;
   }
   await cmd.execute(interaction);
@@ -61,15 +56,15 @@ client.on('interactionCreate', async (interaction: Interaction) => {
       await handleAutocomplete(interaction);
       return;
     }
-    // Button interactions are handled by individual message collectors (resolve.ts)
-    // No global button handler needed here.
   } catch (err) {
     logger.error({ err, commandName: interaction.isCommand() ? interaction.commandName : 'N/A' }, 'Error handling interaction');
 
-    // Attempt to respond if we haven't already
     if (interaction.isChatInputCommand()) {
       try {
-        const errorReply = { content: 'An unexpected error occurred. Please try again.', ephemeral: true };
+        const errorReply = {
+          embeds: [errorEmbed('An unexpected error occurred. Please try again.')],
+          ephemeral: true,
+        };
         if (interaction.replied || interaction.deferred) {
           await interaction.followUp(errorReply);
         } else {
@@ -153,8 +148,8 @@ async function main(): Promise<void> {
     }
 
     // Start cron jobs
-    startBankSeedingCron(client);
-    startInactivitySweepCron(client);
+    startBankSeedingCron();
+    startInactivitySweepCron();
     logger.info('Cron jobs started: bank seeding (Sunday 00:00 UTC), inactivity sweep (daily 00:05 UTC).');
   });
 }

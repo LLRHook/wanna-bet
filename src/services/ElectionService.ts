@@ -52,8 +52,7 @@ export interface StartElectionResult {
  */
 export function startElection(
   db: Database.Database,
-  guildId: string,
-  _callerId: string
+  guildId: string
 ): StartElectionResult {
   const txn = db.transaction((): StartElectionResult => {
     // Check player count >= 2

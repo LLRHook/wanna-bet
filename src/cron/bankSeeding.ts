@@ -1,4 +1,3 @@
-import type { Client } from 'discord.js';
 import cron from 'node-cron';
 import { getDb } from '../db/connection';
 import { transfer } from '../services/BalanceService';
@@ -21,7 +20,7 @@ interface GuildBankRow {
   player_count: number;
 }
 
-export function startBankSeedingCron(_client: Client): cron.ScheduledTask {
+export function startBankSeedingCron(): cron.ScheduledTask {
   return cron.schedule(
     '0 0 * * 0', // Sunday 00:00 UTC
     async () => {
