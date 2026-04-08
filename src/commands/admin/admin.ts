@@ -2,7 +2,17 @@ import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
   AutocompleteInteraction,
+  EmbedBuilder,
+  PermissionFlagsBits,
 } from 'discord.js';
+import { getDb } from '../../db/connection';
+import { getPlayer, getGuild, touchPlayer } from '../../services/PlayerService';
+import { transfer, formatCents, dollarsToCents } from '../../services/BalanceService';
+import { getBet, getParticipants, adminCancelBet, settleBet } from '../../services/BetService';
+import { audit } from '../../services/AuditService';
+import { client } from '../../index';
+import { errorEmbed } from '../../ui/embeds';
+import { COLORS } from '../../ui/colors';
 
 export const data = new SlashCommandBuilder()
   .setName('admin')
@@ -11,21 +21,31 @@ export const data = new SlashCommandBuilder()
     sub
       .setName('grant')
       .setDescription('Grant funds from the bank to a player.')
-      .addUserOption((opt) => opt.setName('user').setDescription('The player to grant funds to.').setRequired(true))
-      .addNumberOption((opt) => opt.setName('amount').setDescription('Amount in dollars.').setRequired(true).setMinValue(0.01))
+      .addUserOption((opt) =>
+        opt.setName('user').setDescription('The player to grant funds to.').setRequired(true)
+      )
+      .addNumberOption((opt) =>
+        opt.setName('amount').setDescription('Amount in dollars.').setRequired(true).setMinValue(0.01)
+      )
   )
   .addSubcommand((sub) =>
     sub
       .setName('seize')
       .setDescription('Seize funds from a player to the bank.')
-      .addUserOption((opt) => opt.setName('user').setDescription('The player to seize from.').setRequired(true))
-      .addNumberOption((opt) => opt.setName('amount').setDescription('Amount in dollars.').setRequired(true).setMinValue(0.01))
+      .addUserOption((opt) =>
+        opt.setName('user').setDescription('The player to seize from.').setRequired(true)
+      )
+      .addNumberOption((opt) =>
+        opt.setName('amount').setDescription('Amount in dollars.').setRequired(true).setMinValue(0.01)
+      )
   )
   .addSubcommand((sub) =>
     sub
       .setName('resolve')
       .setDescription('Force-resolve a bet.')
-      .addStringOption((opt) => opt.setName('bet-id').setDescription('The bet ID.').setRequired(true).setAutocomplete(true))
+      .addStringOption((opt) =>
+        opt.setName('bet-id').setDescription('The bet ID.').setRequired(true).setAutocomplete(true)
+      )
       .addStringOption((opt) =>
         opt
           .setName('outcome')
@@ -41,26 +61,408 @@ export const data = new SlashCommandBuilder()
   .addSubcommand((sub) =>
     sub
       .setName('cancel')
-      .setDescription('Cancel a bet and refund stakes (fees retained).')
-      .addStringOption((opt) => opt.setName('bet-id').setDescription('The bet ID.').setRequired(true).setAutocomplete(true))
+      .setDescription('Cancel a bet and refund stakes (fees retained by bank).')
+      .addStringOption((opt) =>
+        opt.setName('bet-id').setDescription('The bet ID.').setRequired(true).setAutocomplete(true)
+      )
   )
   .addSubcommand((sub) =>
     sub
       .setName('ban')
       .setDescription('Ban a player from the economy.')
-      .addUserOption((opt) => opt.setName('user').setDescription('The player to ban.').setRequired(true))
+      .addUserOption((opt) =>
+        opt.setName('user').setDescription('The player to ban.').setRequired(true)
+      )
   )
   .addSubcommand((sub) =>
     sub
       .setName('unban')
       .setDescription('Unban a player.')
-      .addUserOption((opt) => opt.setName('user').setDescription('The player to unban.').setRequired(true))
+      .addUserOption((opt) =>
+        opt.setName('user').setDescription('The player to unban.').setRequired(true)
+      )
   );
 
+function isAdmin(db: ReturnType<typeof getDb>, guildId: string, userId: string): boolean {
+  const guild = getGuild(db, guildId);
+  return guild?.current_admin_id === userId;
+}
+
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  await interaction.reply({ content: 'Admin command not yet implemented.', ephemeral: true });
+  const db = getDb();
+  const guildId = interaction.guildId!;
+  const userId = interaction.user.id;
+  const sub = interaction.options.getSubcommand(true);
+
+  if (!isAdmin(db, guildId, userId)) {
+    await interaction.reply({
+      embeds: [errorEmbed('You must be the elected admin to use admin commands.')],
+      ephemeral: true,
+    });
+    return;
+  }
+
+  if (sub === 'grant') {
+    const target = interaction.options.getUser('user', true);
+    const amount = interaction.options.getNumber('amount', true);
+    const amountCents = dollarsToCents(amount);
+
+    const targetPlayer = getPlayer(db, guildId, target.id);
+    if (!targetPlayer || targetPlayer.status !== 'active') {
+      await interaction.reply({
+        embeds: [errorEmbed(`<@${target.id}> is not an active registered player.`)],
+        ephemeral: true,
+      });
+      return;
+    }
+
+    const bankRow = db
+      .prepare<[string], { balance: number }>('SELECT balance FROM bank WHERE guild_id=?')
+      .get(guildId);
+    if (!bankRow || bankRow.balance < amountCents) {
+      await interaction.reply({
+        embeds: [errorEmbed(`Insufficient bank funds. Bank has ${formatCents(bankRow?.balance ?? 0)}.`)],
+        ephemeral: true,
+      });
+      return;
+    }
+
+    const xfer = transfer(db, {
+      guildId,
+      fromBank: amountCents,
+      toWallet: { userId: target.id, amount: amountCents },
+    });
+
+    if (!xfer.success) {
+      await interaction.reply({ embeds: [errorEmbed(xfer.error!)], ephemeral: true });
+      return;
+    }
+
+    const newBalance = getPlayer(db, guildId, target.id)?.balance ?? 0;
+
+    await interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(COLORS.PURPLE)
+          .setTitle('Grant Issued')
+          .addFields(
+            { name: 'Recipient', value: `<@${target.id}>`, inline: true },
+            { name: 'Amount', value: formatCents(amountCents), inline: true },
+            { name: 'New Balance', value: formatCents(newBalance), inline: true }
+          )
+          .setTimestamp(),
+      ],
+    });
+
+    touchPlayer(db, guildId, userId);
+    await audit(db, client, {
+      guildId,
+      actorId: userId,
+      actionType: 'ADMIN_GRANT',
+      payload: { targetId: target.id, amountCents },
+    });
+    return;
+  }
+
+  if (sub === 'seize') {
+    const target = interaction.options.getUser('user', true);
+    const amount = interaction.options.getNumber('amount', true);
+    const amountCents = dollarsToCents(amount);
+
+    const targetPlayer = getPlayer(db, guildId, target.id);
+    if (!targetPlayer) {
+      await interaction.reply({
+        embeds: [errorEmbed(`<@${target.id}> is not registered.`)],
+        ephemeral: true,
+      });
+      return;
+    }
+    if (targetPlayer.balance < amountCents) {
+      await interaction.reply({
+        embeds: [errorEmbed(`Player only has ${formatCents(targetPlayer.balance)}.`)],
+        ephemeral: true,
+      });
+      return;
+    }
+
+    const xfer = transfer(db, {
+      guildId,
+      fromWallet: { userId: target.id, amount: amountCents },
+      toBank: amountCents,
+    });
+
+    if (!xfer.success) {
+      await interaction.reply({ embeds: [errorEmbed(xfer.error!)], ephemeral: true });
+      return;
+    }
+
+    await interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(COLORS.PURPLE)
+          .setTitle('Funds Seized')
+          .addFields(
+            { name: 'From', value: `<@${target.id}>`, inline: true },
+            { name: 'Amount', value: formatCents(amountCents), inline: true }
+          )
+          .setTimestamp(),
+      ],
+    });
+
+    touchPlayer(db, guildId, userId);
+    await audit(db, client, {
+      guildId,
+      actorId: userId,
+      actionType: 'ADMIN_SEIZE',
+      payload: { targetId: target.id, amountCents },
+    });
+    return;
+  }
+
+  if (sub === 'resolve') {
+    const betId = interaction.options.getString('bet-id', true).toUpperCase().trim();
+    const outcome = interaction.options.getString('outcome', true) as 'A' | 'B' | 'neither';
+
+    const bet = getBet(db, guildId, betId);
+    if (!bet) {
+      await interaction.reply({ embeds: [errorEmbed(`Bet #${betId} not found.`)], ephemeral: true });
+      return;
+    }
+    if (['resolved', 'cancelled'].includes(bet.status)) {
+      await interaction.reply({
+        embeds: [errorEmbed(`Bet #${betId} is already ${bet.status}.`)],
+        ephemeral: true,
+      });
+      return;
+    }
+
+    // Re-verify admin inside transaction (race protection)
+    const currentGuild = getGuild(db, guildId);
+    if (currentGuild?.current_admin_id !== userId) {
+      await interaction.reply({
+        embeds: [errorEmbed('You are no longer the admin.')],
+        ephemeral: true,
+      });
+      return;
+    }
+
+    const settleResult = settleBet(db, guildId, betId, outcome, userId);
+    if (!settleResult.success) {
+      await interaction.reply({ embeds: [errorEmbed(settleResult.error!)], ephemeral: true });
+      return;
+    }
+
+    const outcomeLabel =
+      outcome === 'A' ? `Side A (${bet.side_a_label})`
+      : outcome === 'B' ? `Side B (${bet.side_b_label})`
+      : 'Neither (push)';
+
+    const payoutLines = (settleResult.payouts ?? [])
+      .map((p) => `<@${p.userId}>: +${formatCents(p.payout)}`)
+      .join('\n');
+
+    await interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(COLORS.PURPLE)
+          .setTitle(`Admin Force-Resolved #${betId}`)
+          .addFields(
+            { name: 'Outcome', value: outcomeLabel, inline: true },
+            { name: 'Resolved By', value: `<@${userId}>`, inline: true },
+            { name: 'Payouts', value: payoutLines || 'None', inline: false }
+          )
+          .setTimestamp(),
+      ],
+    });
+
+    touchPlayer(db, guildId, userId);
+    await audit(db, client, {
+      guildId,
+      actorId: userId,
+      actionType: 'ADMIN_RESOLVE',
+      payload: { betId, outcome, payouts: settleResult.payouts },
+    });
+    return;
+  }
+
+  if (sub === 'cancel') {
+    const betId = interaction.options.getString('bet-id', true).toUpperCase().trim();
+
+    const cancelResult = adminCancelBet(db, guildId, betId);
+    if (!cancelResult.success) {
+      await interaction.reply({ embeds: [errorEmbed(cancelResult.error!)], ephemeral: true });
+      return;
+    }
+
+    const refundLines = (cancelResult.refunds ?? [])
+      .map((r) => `<@${r.userId}>: +${formatCents(r.amount)} (stake only)`)
+      .join('\n');
+
+    await interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(COLORS.GRAY)
+          .setTitle(`Bet Cancelled #${betId}`)
+          .setDescription('Stakes refunded to participants. Fees retained by bank.')
+          .addFields({ name: 'Refunds', value: refundLines || 'None' })
+          .setTimestamp(),
+      ],
+    });
+
+    // DM all participants
+    const bet = getBet(db, guildId, betId);
+    if (bet) {
+      const participants = getParticipants(db, betId, guildId);
+      for (const p of participants) {
+        try {
+          const user = await client.users.fetch(p.user_id);
+          await user.send({
+            embeds: [
+              new EmbedBuilder()
+                .setColor(COLORS.GRAY)
+                .setTitle(`Bet Cancelled — #${betId}`)
+                .setDescription(`Bet #${betId} has been admin-cancelled. Your stake (${formatCents(p.stake)}) has been refunded. Fees are not refunded.`)
+                .setTimestamp(),
+            ],
+          });
+        } catch {
+          // DMs closed
+        }
+      }
+    }
+
+    touchPlayer(db, guildId, userId);
+    await audit(db, client, {
+      guildId,
+      actorId: userId,
+      actionType: 'ADMIN_CANCEL',
+      payload: { betId },
+    });
+    return;
+  }
+
+  if (sub === 'ban') {
+    const target = interaction.options.getUser('user', true);
+    const targetPlayer = getPlayer(db, guildId, target.id);
+
+    if (!targetPlayer) {
+      await interaction.reply({
+        embeds: [errorEmbed(`<@${target.id}> is not registered.`)],
+        ephemeral: true,
+      });
+      return;
+    }
+    if (targetPlayer.status === 'banned') {
+      await interaction.reply({
+        embeds: [errorEmbed(`<@${target.id}> is already banned.`)],
+        ephemeral: true,
+      });
+      return;
+    }
+
+    db.prepare<[string, string]>(
+      "UPDATE players SET status='banned' WHERE guild_id=? AND user_id=?"
+    ).run(guildId, target.id);
+
+    await interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(COLORS.RED)
+          .setTitle('Player Banned')
+          .addFields({ name: 'Player', value: `<@${target.id}>`, inline: true })
+          .setTimestamp(),
+      ],
+    });
+
+    touchPlayer(db, guildId, userId);
+    await audit(db, client, {
+      guildId,
+      actorId: userId,
+      actionType: 'ADMIN_BAN',
+      payload: { targetId: target.id },
+    });
+    return;
+  }
+
+  if (sub === 'unban') {
+    const target = interaction.options.getUser('user', true);
+    const targetPlayer = getPlayer(db, guildId, target.id);
+
+    if (!targetPlayer || targetPlayer.status !== 'banned') {
+      await interaction.reply({
+        embeds: [errorEmbed(`<@${target.id}> is not banned.`)],
+        ephemeral: true,
+      });
+      return;
+    }
+
+    db.prepare<[string, string]>(
+      "UPDATE players SET status='active' WHERE guild_id=? AND user_id=?"
+    ).run(guildId, target.id);
+
+    await interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(COLORS.GREEN)
+          .setTitle('Player Unbanned')
+          .addFields({ name: 'Player', value: `<@${target.id}>`, inline: true })
+          .setTimestamp(),
+      ],
+    });
+
+    touchPlayer(db, guildId, userId);
+    await audit(db, client, {
+      guildId,
+      actorId: userId,
+      actionType: 'ADMIN_UNBAN',
+      payload: { targetId: target.id },
+    });
+    return;
+  }
 }
 
 export async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
+  const db = getDb();
+  const guildId = interaction.guildId!;
+  const focused = interaction.options.getFocused().toUpperCase();
+  const sub = interaction.options.getSubcommand(false);
+
+  interface BetRow { bet_id: string; description: string }
+
+  if (sub === 'resolve') {
+    const bets = db
+      .prepare<[string], BetRow>(
+        `SELECT bet_id, description FROM bets
+         WHERE guild_id=? AND status NOT IN ('resolved','cancelled')
+         LIMIT 25`
+      )
+      .all(guildId);
+    await interaction.respond(
+      bets
+        .filter((b) => b.bet_id.startsWith(focused))
+        .map((b) => ({ name: `#${b.bet_id} — ${b.description.slice(0, 80)}`, value: b.bet_id }))
+    );
+    return;
+  }
+
+  if (sub === 'cancel') {
+    const bets = db
+      .prepare<[string], BetRow>(
+        `SELECT bet_id, description FROM bets
+         WHERE guild_id=? AND status IN ('open','locked','proposed','disputed')
+         LIMIT 25`
+      )
+      .all(guildId);
+    await interaction.respond(
+      bets
+        .filter((b) => b.bet_id.startsWith(focused))
+        .map((b) => ({ name: `#${b.bet_id} — ${b.description.slice(0, 80)}`, value: b.bet_id }))
+    );
+    return;
+  }
+
   await interaction.respond([]);
 }
+
+// Suppress unused import warning for PermissionFlagsBits (kept for future use)
+void PermissionFlagsBits;
