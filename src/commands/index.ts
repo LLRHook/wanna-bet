@@ -28,6 +28,7 @@ import * as bets from './bets/bets';
 import * as admin from './admin/admin';
 import * as setup from './admin/setup';
 import * as voteAdmin from './election/voteAdmin';
+import * as help from './help';
 
 export const commands: CommandModule[] = [
   register,
@@ -46,6 +47,7 @@ export const commands: CommandModule[] = [
   admin,
   setup,
   voteAdmin,
+  help,
 ];
 
 /** Map of command name → module for fast dispatch */

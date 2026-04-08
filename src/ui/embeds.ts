@@ -112,6 +112,64 @@ export function unregisterEmbed(user: User, finalBalanceCents: number): EmbedBui
     .setTimestamp();
 }
 
+// ─── Help & welcome ─────────────────────────────────────────────────────────────
+
+export function helpEmbed(): EmbedBuilder {
+  return new EmbedBuilder()
+    .setColor(COLORS.BLUE)
+    .setTitle('Wanna Bet Bot — Commands')
+    .setDescription(
+      'A per-server gambling economy with two-sided bet pools, escrow, and an elected admin.'
+    )
+    .addFields(
+      {
+        name: 'Economy',
+        value: '`/register` `/unregister` `/balance` `/daily` `/bank` `/leaderboard` `/stats` `/history`',
+      },
+      {
+        name: 'Betting',
+        value:
+          '`/wanna-bet` create a bet • `/accept` join a bet • `/decline` decline a direct invite • `/resolve` propose an outcome • `/bets active` list open bets',
+      },
+      {
+        name: 'Elections',
+        value: '`/vote-admin start` `/vote-admin nominate` `/vote-admin cast` `/vote-admin status`',
+      },
+      {
+        name: 'Admin (elected admin only)',
+        value:
+          '`/admin grant` `/admin seize` `/admin resolve` `/admin cancel` `/admin ban` `/admin unban`',
+      },
+      {
+        name: 'Server setup (Manage Guild permission)',
+        value: '`/setup role` set the gambler role required for lobby bets',
+      },
+      {
+        name: 'Quickstart',
+        value:
+          '1. `/register` to join and claim $100\n2. `/wanna-bet` to start your first bet\n3. Use `/help` anytime to see this list',
+      }
+    )
+    .setFooter({ text: 'github.com/LLRHook/wanna-bet  •  MIT' })
+    .setTimestamp();
+}
+
+export function welcomeEmbed(guildName: string): EmbedBuilder {
+  return new EmbedBuilder()
+    .setColor(COLORS.BLUE)
+    .setTitle('Wanna Bet Bot is here!')
+    .setDescription(
+      `Thanks for adding me to **${guildName}**.\n\n` +
+        '**Get started:**\n' +
+        '`/register` — claim your $100 starting balance\n' +
+        '`/wanna-bet` — start a two-sided bet\n' +
+        '`/help` — see all commands\n\n' +
+        'For lobby bets (everyone in the channel can join), a server admin should run `/setup role @SomeRole` first.'
+    )
+    .setFooter({ text: 'github.com/LLRHook/wanna-bet' })
+    .setTimestamp();
+}
+
 // ─── Buttons ────────────────────────────────────────────────────────────────────
 
 /**

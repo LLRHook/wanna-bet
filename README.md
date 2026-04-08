@@ -3,7 +3,12 @@
 [![CI](https://github.com/llrhook/wanna-bet/actions/workflows/ci.yml/badge.svg)](https://github.com/llrhook/wanna-bet/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-A Discord gambling-economy bot. Per-guild virtual currency, two-sided bet pools with escrow, an elected admin who can grant/seize/force-resolve, and daily/weekly inflation taps. TypeScript + discord.js v14 + SQLite.
+A Discord gambling-economy bot. Per-guild virtual currency, two-sided bet pools with escrow, an elected admin who can grant/seize/force-resolve, and a daily inflation tap. TypeScript + discord.js v14 + SQLite.
+
+> **[➤ Add Wanna Bet Bot to your Discord server](https://discord.com/oauth2/authorize?client_id=1491240385031311470&permissions=2147568640&integration_type=0&scope=bot+applications.commands)**
+> No setup, no hosting, no `.env` — click, pick a server, authorize, then run `/help`.
+
+The Quickstart below is for **self-hosting** your own copy of the bot. If you just want to use the existing public bot in your Discord server, the link above is all you need.
 
 ## Quickstart
 
