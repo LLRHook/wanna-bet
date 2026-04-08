@@ -32,15 +32,38 @@ export const client = new Client({
 // ─── Interaction Dispatcher ────────────────────────────────────────────────────
 
 async function handleChatInputCommand(interaction: ChatInputCommandInteraction): Promise<void> {
+  logger.info(
+    {
+      interactionId: interaction.id,
+      commandName: interaction.commandName,
+      userId: interaction.user.id,
+    },
+    'handling command'
+  );
+
   const cmd = commandMap.get(interaction.commandName);
   if (!cmd) {
-    await interaction.reply({ embeds: [errorEmbed('Unknown command.')], ephemeral: true });
+    await interaction.reply({
+      embeds: [errorEmbed('Unknown command.')],
+      ephemeral: true,
+    });
     return;
   }
   // Defer immediately so we have 15 minutes to respond instead of 3 seconds.
   // Every command body must use interaction.editReply (not reply) for its primary response.
+  // If the interaction is already expired by the time we try to defer (gateway latency
+  // ate the 3-second window), Discord returns 10062. Catch it cleanly so we don't try
+  // to followUp on a dead interaction.
   if (!interaction.deferred && !interaction.replied) {
-    await interaction.deferReply();
+    try {
+      await interaction.deferReply();
+    } catch (err) {
+      logger.warn(
+        { err, interactionId: interaction.id, commandName: interaction.commandName },
+        'failed to defer interaction (likely expired); aborting'
+      );
+      return;
+    }
   }
   await cmd.execute(interaction);
 }
