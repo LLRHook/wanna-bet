@@ -1,13 +1,15 @@
 /**
  * Standalone command registration script.
- * Registers all slash commands to the configured guild (instant propagation).
+ * Registers all slash commands GLOBALLY against the application.
  *
  * Run via: npm run register-commands
  *
- * Requires: DISCORD_TOKEN and GUILD_ID in .env
+ * Requires: DISCORD_TOKEN in .env
  *
- * Uses guild-scoped registration (guild.commands.set) NOT global registration,
- * because global commands take up to 1 hour to propagate.
+ * Uses global registration (Routes.applicationCommands). Global commands do NOT
+ * require the applications.commands OAuth scope to be granted on a per-guild
+ * install — they're application-level. They take up to ~1 hour to propagate to
+ * existing guild caches the first time, but updates are near-instant after that.
  */
 import 'dotenv/config';
 import { REST, Routes } from 'discord.js';
@@ -18,22 +20,20 @@ async function registerCommands(): Promise<void> {
   const rest = new REST({ version: '10' }).setToken(config.discordToken);
 
   const commandData = commands.map((cmd) => cmd.data.toJSON());
+  const applicationId = Buffer.from(config.discordToken.split('.')[0]!, 'base64').toString('utf-8');
 
-  console.log(`Registering ${commandData.length} slash commands to guild ${config.guildId}...`);
+  console.log(`Registering ${commandData.length} global slash commands for application ${applicationId}...`);
   console.log('Commands:', commandData.map((c) => c.name).join(', '));
 
   try {
     const result = await rest.put(
-      Routes.applicationGuildCommands(
-        // Extract application ID from token (first segment before the first dot)
-        Buffer.from(config.discordToken.split('.')[0]!, 'base64').toString('utf-8'),
-        config.guildId
-      ),
+      Routes.applicationCommands(applicationId),
       { body: commandData }
     );
 
     const registered = result as unknown[];
-    console.log(`Successfully registered ${registered.length} slash commands to guild ${config.guildId}.`);
+    console.log(`Successfully registered ${registered.length} global slash commands.`);
+    console.log('Note: Global commands may take up to 1 hour to appear in all guilds on first registration.');
   } catch (err) {
     console.error('Failed to register commands:', err);
     process.exit(1);
