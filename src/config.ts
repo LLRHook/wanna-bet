@@ -16,14 +16,11 @@ function requireEnv(name: string): string {
 export interface Config {
   /** Discord bot token */
   discordToken: string;
-  /** Discord guild ID for command registration */
-  guildId: string;
   /** Node environment */
   nodeEnv: string;
 }
 
 export const config: Config = {
   discordToken: requireEnv('DISCORD_TOKEN'),
-  guildId: requireEnv('GUILD_ID'),
   nodeEnv: process.env['NODE_ENV'] ?? 'development',
 };
