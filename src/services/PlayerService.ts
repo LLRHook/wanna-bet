@@ -255,5 +255,5 @@ export function claimDaily(
     return { success: true, newBalance: updated?.balance };
   });
 
-  return txn();
+  return txn.immediate();
 }

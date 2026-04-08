@@ -118,7 +118,7 @@ export function startElection(
     return { success: true, election: election ?? undefined };
   });
 
-  return txn();
+  return txn.immediate();
 }
 
 export interface NominateResult {
@@ -329,7 +329,7 @@ export async function finalizeElection(
     return { success: true, status: 'closed', winnerId: winner.candidate_id };
   });
 
-  const result = txn();
+  const result = txn.immediate();
 
   // Validate winner is still in guild (check after transaction)
   if (result.status === 'closed' && result.winnerId) {

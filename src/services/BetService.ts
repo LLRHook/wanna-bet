@@ -176,7 +176,7 @@ export function createBet(db: Database.Database, params: CreateBetParams): Creat
     return { success: true, bet: bet ?? undefined, fee, netStake };
   });
 
-  return txn();
+  return txn.immediate();
 }
 
 export interface JoinBetParams {
@@ -271,7 +271,7 @@ export function joinBet(db: Database.Database, params: JoinBetParams): JoinBetRe
     return { success: true, fee, netStake, poolTotals };
   });
 
-  return txn();
+  return txn.immediate();
 }
 
 /**
@@ -368,7 +368,7 @@ export function declineBet(
     return { success: true };
   });
 
-  return txn();
+  return txn.immediate();
 }
 
 export interface CancelBetResult {
@@ -425,7 +425,7 @@ export function adminCancelBet(
     return { success: true, refunds };
   });
 
-  return txn();
+  return txn.immediate();
 }
 
 export interface SettleResult {
@@ -547,7 +547,7 @@ export function settleBet(
     return { success: true, payouts };
   });
 
-  return txn();
+  return txn.immediate();
 }
 
 /**
@@ -638,7 +638,7 @@ export function proposeResolution(
     return { success: true };
   });
 
-  return txn();
+  return txn.immediate();
 }
 
 /**
@@ -699,5 +699,5 @@ export function recordResolutionResponse(
     return { success: true, allConfirmed, hasDispute: false };
   });
 
-  return txn();
+  return txn.immediate();
 }

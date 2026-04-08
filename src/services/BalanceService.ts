@@ -147,13 +147,7 @@ export function transfer(db: Database.Database, params: TransferParams): Transfe
     };
   });
 
-  // Execute inside BEGIN IMMEDIATE (better-sqlite3 transactions are DEFERRED by default;
-  // use .exclusive for IMMEDIATE semantics — better-sqlite3 uses "exclusive" keyword
-  // which maps to BEGIN EXCLUSIVE. For true IMMEDIATE we use the default transaction
-  // since better-sqlite3 synchronous API already serializes in single-process Node.
-  // With WAL mode, concurrent reads are non-blocking and concurrent writes are serialized
-  // by SQLite's write lock, giving us the race protection we need.)
-  return txn();
+  return txn.immediate();
 }
 
 /**

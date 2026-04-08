@@ -61,7 +61,7 @@ export function startInactivitySweepCron(): cron.ScheduledTask {
         }
       });
 
-      batchUpdate(candidates);
+      batchUpdate.immediate(candidates);
 
       // Audit each guild's sweep
       const byGuild = new Map<string, number>();
