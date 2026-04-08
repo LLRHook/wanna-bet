@@ -11,7 +11,7 @@ import { getBet, getParticipants, adminCancelBet, settleBet } from '../../servic
 import { audit } from '../../services/AuditService';
 import { client } from '../../index';
 import { errorEmbed } from '../../ui/embeds';
-import { COLORS } from '../../ui/colors';
+import { COLORS } from '../../ui/embeds';
 
 export const data = new SlashCommandBuilder()
   .setName('admin')
@@ -151,7 +151,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     });
 
     touchPlayer(db, guildId, userId);
-    await audit(db, client, {
+    audit(db, {
       guildId,
       actorId: userId,
       actionType: 'ADMIN_GRANT',
@@ -204,7 +204,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     });
 
     touchPlayer(db, guildId, userId);
-    await audit(db, client, {
+    audit(db, {
       guildId,
       actorId: userId,
       actionType: 'ADMIN_SEIZE',
@@ -268,7 +268,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     });
 
     touchPlayer(db, guildId, userId);
-    await audit(db, client, {
+    audit(db, {
       guildId,
       actorId: userId,
       actionType: 'ADMIN_RESOLVE',
@@ -324,7 +324,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     }
 
     touchPlayer(db, guildId, userId);
-    await audit(db, client, {
+    audit(db, {
       guildId,
       actorId: userId,
       actionType: 'ADMIN_CANCEL',
@@ -365,7 +365,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     });
 
     touchPlayer(db, guildId, userId);
-    await audit(db, client, {
+    audit(db, {
       guildId,
       actorId: userId,
       actionType: 'ADMIN_BAN',
@@ -400,7 +400,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     });
 
     touchPlayer(db, guildId, userId);
-    await audit(db, client, {
+    audit(db, {
       guildId,
       actorId: userId,
       actionType: 'ADMIN_UNBAN',

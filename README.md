@@ -60,7 +60,7 @@ docker compose run --rm wannabet node dist/commands/register.js
 | `/history [@user]` | Paginated bet history. |
 | `/vote-admin start\|nominate\|cast\|status` | Elect a server admin. 1-hour window, ≥50% quorum, plurality wins, ties random. |
 | `/admin grant\|seize\|resolve\|cancel\|ban\|unban` | Admin powers (elected admin only). Cannot print money or change rates. |
-| `/setup role\|audit-channel` | Bot setup (Manage Guild permission). |
+| `/setup role` | Set the gambler role required for lobby bets (Manage Guild permission). |
 
 ## Economy model
 
@@ -69,13 +69,13 @@ All amounts stored as integer **cents**. $1.00 = 100.
 - **Fee per bet side**: `max($1, 1% of wager)`, deducted from the wager (not on top). $5 wager → $5 leaves your wallet, $1 to bank, $4 enters the pool.
 - **Settlement**: winners get their stake back plus a pro-rata share of the loser pool (`floor(stake / total_winner_stake * loser_pool)`). Rounding remainder goes to the largest-stake winner.
 - **"Neither" outcome**: each participant gets their stake back, fees stay in bank.
-- **Inflation**: starting balance $100, daily $5 (per-user, UTC midnight), weekly bank seed $25 on Sunday 00:00 UTC if bank balance is below `100 × player_count`.
+- **Inflation taps**: starting balance $100, daily $5 (per-user, UTC midnight). The bank only grows from bet fees — no automatic seeding.
 
 ## Architecture
 
 `BalanceService.transfer()` is the **only** function that mutates `players.balance` or `bank.balance`. Every grant, payout, fee, escrow, and refund goes through it, wrapped in a `BEGIN IMMEDIATE` transaction. No exceptions. This is the load-bearing invariant of the codebase.
 
-Other services: `BetService` (bet lifecycle, settlement math), `PlayerService` (registration, lifecycle), `ElectionService` (admin elections), `AuditService` (audit log). One SQLite connection in WAL mode. Two cron jobs (Sunday bank seeding, daily inactivity sweep).
+Other services: `BetService` (bet lifecycle, settlement math), `PlayerService` (registration, lifecycle), `ElectionService` (admin elections), `AuditService` (synchronous append to the `audit_log` table). One SQLite connection in WAL mode.
 
 Slash commands are registered globally — first registration takes up to ~1 hour to propagate, updates are near-instant.
 

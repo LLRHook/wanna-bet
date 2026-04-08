@@ -13,10 +13,7 @@ import { logger } from './logger';
 import { commandMap } from './commands/index';
 import { ensureGuild, getGuild } from './services/PlayerService';
 import { revokeAdmin, getOpenElection, scheduleElectionFinalization } from './services/ElectionService';
-import { auditSync } from './services/AuditService';
-import { startBankSeedingCron } from './cron/bankSeeding';
-import { startInactivitySweepCron } from './cron/inactivitySweep';
-import { reattachResolutionCollectors } from './commands/bets/resolve';
+import { audit } from './services/AuditService';
 import { errorEmbed } from './ui/embeds';
 
 // ─── Discord Client ────────────────────────────────────────────────────────────
@@ -118,7 +115,7 @@ client.on('guildMemberRemove', async (member) => {
 
     if (guild.current_admin_id === userId) {
       revokeAdmin(db, guildId, userId);
-      auditSync(db, {
+      audit(db, {
         guildId,
         actorId: userId,
         actionType: 'ADMIN_REVOKED',
@@ -141,7 +138,6 @@ async function main(): Promise<void> {
   // Login to Discord
   await client.login(config.discordToken);
 
-  // After ready: start crons, re-attach collectors, re-schedule elections
   client.once('ready', async () => {
     logger.info(`Logged in as ${client.user?.tag ?? 'unknown'}`);
     logger.info(`Serving ${client.guilds.cache.size} guild(s).`);
@@ -149,14 +145,6 @@ async function main(): Promise<void> {
     // Ensure guild rows exist for all cached guilds
     for (const guild of client.guilds.cache.values()) {
       ensureGuild(db, guild.id);
-    }
-
-    // Re-attach button collectors for proposed bets (restart recovery)
-    try {
-      await reattachResolutionCollectors();
-      logger.info('Resolution collectors re-attached.');
-    } catch (err) {
-      logger.error({ err }, 'Failed to re-attach resolution collectors');
     }
 
     // Re-schedule election finalization timers for any open elections
@@ -174,11 +162,6 @@ async function main(): Promise<void> {
         }
       }
     }
-
-    // Start cron jobs
-    startBankSeedingCron();
-    startInactivitySweepCron();
-    logger.info('Cron jobs started: bank seeding (Sunday 00:00 UTC), inactivity sweep (daily 00:05 UTC).');
   });
 }
 

@@ -8,7 +8,6 @@ import { touchPlayer } from '../../services/PlayerService';
 import { audit } from '../../services/AuditService';
 import { registerEmbed } from '../../ui/embeds';
 import { errorEmbed } from '../../ui/embeds';
-import { client } from '../../index';
 
 export const data = new SlashCommandBuilder()
   .setName('register')
@@ -35,7 +34,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   touchPlayer(db, guildId, userId);
 
-  await audit(db, client, {
+  audit(db, {
     guildId,
     actorId: userId,
     actionType: 'PLAYER_REGISTER',

@@ -6,7 +6,7 @@ import {
 import { getDb } from '../../db/connection';
 import { ensureGuild, getGuild } from '../../services/PlayerService';
 import { formatCents } from '../../services/BalanceService';
-import { COLORS } from '../../ui/colors';
+import { COLORS } from '../../ui/embeds';
 
 export const data = new SlashCommandBuilder()
   .setName('bank')

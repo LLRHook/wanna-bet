@@ -5,7 +5,6 @@ import {
   EmbedBuilder,
   ComponentType,
   ButtonInteraction,
-  ChannelType,
   TextChannel,
 } from 'discord.js';
 import { getDb } from '../../db/connection';
@@ -21,9 +20,7 @@ import {
 } from '../../services/BetService';
 import { audit } from '../../services/AuditService';
 import { client } from '../../index';
-import { errorEmbed } from '../../ui/embeds';
-import { resolutionButtons } from '../../ui/buttons';
-import { COLORS } from '../../ui/colors';
+import { errorEmbed, resolutionButtons, COLORS } from '../../ui/embeds';
 import { formatCents } from '../../services/BalanceService';
 import { logger } from '../../logger';
 
@@ -51,8 +48,8 @@ export const data = new SlashCommandBuilder()
 
 /**
  * Sends DMs (or channel fallback) to all non-proposer participants with Confirm/Dispute buttons.
- * Stores the per-participant message location in bet_proposal_messages so restart recovery
- * can re-attach a collector to each individual proposal message.
+ * Each message gets a 48h button collector attached. If the bot restarts mid-resolution,
+ * the buttons go cold and an admin force-resolve is required to settle the bet.
  */
 export async function sendResolutionDMs(
   betId: string,
@@ -88,15 +85,8 @@ export async function sendResolutionDMs(
 
   const buttons = resolutionButtons(betId);
 
-  const insertProposalMessage = db.prepare<[string, string, string, string, string, number]>(
-    `INSERT OR REPLACE INTO bet_proposal_messages
-     (bet_id, guild_id, user_id, channel_id, message_id, is_dm)
-     VALUES (?, ?, ?, ?, ?, ?)`
-  );
-
   for (const participant of others) {
     let sentMessage = null;
-    let isDM = true;
 
     try {
       const user = await client.users.fetch(participant.user_id);
@@ -106,7 +96,6 @@ export async function sendResolutionDMs(
       });
     } catch {
       // DMs closed — fallback to channel
-      isDM = false;
       try {
         const channel = client.channels.cache.get(bet.channel_id) as TextChannel | undefined;
         if (channel) {
@@ -122,14 +111,6 @@ export async function sendResolutionDMs(
     }
 
     if (sentMessage) {
-      insertProposalMessage.run(
-        betId,
-        guildId,
-        participant.user_id,
-        sentMessage.channel.id,
-        sentMessage.id,
-        isDM ? 1 : 0
-      );
       attachButtonCollector(sentMessage, betId, guildId, participant.user_id, bet);
     }
   }
@@ -206,7 +187,7 @@ export function attachButtonCollector(
         logger.error({ err, betId }, 'Failed to notify channel of dispute');
       }
 
-      await audit(db, client, {
+      audit(db, {
         guildId,
         actorId: participantId,
         actionType: 'RESOLUTION_DISPUTED',
@@ -269,7 +250,7 @@ export function attachButtonCollector(
           logger.error({ err, betId }, 'Failed to notify channel of settlement');
         }
 
-        await audit(db, client, {
+        audit(db, {
           guildId,
           actorId: participantId,
           actionType: 'BET_RESOLVED',
@@ -289,7 +270,7 @@ export function attachButtonCollector(
         components: [],
       });
 
-      await audit(db, client, {
+      audit(db, {
         guildId,
         actorId: participantId,
         actionType: 'RESOLUTION_CONFIRMED',
@@ -409,7 +390,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   touchPlayer(db, guildId, userId);
 
-  await audit(db, client, {
+  audit(db, {
     guildId,
     actorId: userId,
     actionType: 'RESOLUTION_PROPOSED',
@@ -443,56 +424,4 @@ export async function autocomplete(interaction: AutocompleteInteraction): Promis
         value: b.bet_id,
       }))
   );
-}
-
-/**
- * Re-attaches button collectors for all 'proposed' bets on startup.
- * Iterates bet_proposal_messages so every per-participant message gets its own
- * collector restored, even for 3+ participant lobby bets.
- */
-export async function reattachResolutionCollectors(): Promise<void> {
-  const db = getDb();
-
-  interface PendingProposalMessage {
-    bet_id: string;
-    guild_id: string;
-    user_id: string;
-    channel_id: string;
-    message_id: string;
-    is_dm: number;
-  }
-
-  const pending = db
-    .prepare<[], PendingProposalMessage>(
-      `SELECT bpm.bet_id, bpm.guild_id, bpm.user_id, bpm.channel_id, bpm.message_id, bpm.is_dm
-       FROM bet_proposal_messages bpm
-       JOIN bets b ON b.bet_id = bpm.bet_id AND b.guild_id = bpm.guild_id
-       WHERE b.status = 'proposed'`
-    )
-    .all();
-
-  for (const pm of pending) {
-    const bet = getBet(db, pm.guild_id, pm.bet_id);
-    if (!bet) continue;
-
-    try {
-      let message;
-      if (pm.is_dm) {
-        const user = await client.users.fetch(pm.user_id);
-        const dmChannel = await user.createDM();
-        message = await dmChannel.messages.fetch(pm.message_id);
-      } else {
-        const channel = await client.channels.fetch(pm.channel_id);
-        if (channel?.type === ChannelType.GuildText) {
-          message = await channel.messages.fetch(pm.message_id);
-        }
-      }
-      if (message) {
-        attachButtonCollector(message, pm.bet_id, pm.guild_id, pm.user_id, bet);
-        logger.info({ betId: pm.bet_id, userId: pm.user_id }, 'Re-attached resolution collector');
-      }
-    } catch (err) {
-      logger.warn({ err, betId: pm.bet_id, userId: pm.user_id }, 'Could not re-attach resolution collector');
-    }
-  }
 }

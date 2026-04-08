@@ -7,9 +7,8 @@ import { getDb } from '../../db/connection';
 import { getPlayer, ensureGuild, touchPlayer } from '../../services/PlayerService';
 import { createBet } from '../../services/BetService';
 import { audit } from '../../services/AuditService';
-import { client } from '../../index';
 import { errorEmbed } from '../../ui/embeds';
-import { COLORS } from '../../ui/colors';
+import { COLORS } from '../../ui/embeds';
 import { formatCents, dollarsToCents } from '../../services/BalanceService';
 
 export const data = new SlashCommandBuilder()
@@ -205,7 +204,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   touchPlayer(db, guildId, userId);
 
-  await audit(db, client, {
+  audit(db, {
     guildId,
     actorId: userId,
     actionType: 'BET_CREATED',

@@ -405,34 +405,5 @@ export function scheduleElectionFinalization(
   return setTimeout(async () => {
     const result = await finalizeElection(db, client, guildId, election.id);
     logger.info({ guildId, electionId: election.id, result }, 'Election finalized');
-
-    // Notify guild channel (if any)
-    try {
-      const guild = db
-        .prepare<[string], { audit_channel_id: string | null }>(
-          `SELECT audit_channel_id FROM guilds WHERE guild_id=?`
-        )
-        .get(guildId);
-
-      if (guild?.audit_channel_id) {
-        const { EmbedBuilder } = await import('discord.js');
-        const { COLORS } = await import('../ui/colors');
-        const channel = client.channels.cache.get(guild.audit_channel_id);
-        if (channel && channel.isTextBased() && 'send' in channel) {
-          const embed = new EmbedBuilder()
-            .setColor(result.status === 'closed' ? COLORS.PURPLE : COLORS.RED)
-            .setTitle(result.status === 'closed' ? 'Election Closed — New Admin Elected!' : 'Election Failed')
-            .setDescription(
-              result.status === 'closed'
-                ? `<@${result.winnerId}> has been elected as the new admin!`
-                : `The election failed: ${result.reason ?? 'Unknown reason.'}`
-            )
-            .setTimestamp();
-          await channel.send({ embeds: [embed] });
-        }
-      }
-    } catch (err) {
-      logger.error({ err, guildId }, 'Failed to post election result to channel');
-    }
   }, delay);
 }

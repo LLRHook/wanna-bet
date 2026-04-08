@@ -4,8 +4,8 @@ import {
   EmbedBuilder,
 } from 'discord.js';
 import { getDb } from '../../db/connection';
-import { buildLeaderboardTable, LeaderboardRow } from '../../ui/tables';
-import { COLORS } from '../../ui/colors';
+import { buildLeaderboardTable, LeaderboardRow } from '../../ui/embeds';
+import { COLORS } from '../../ui/embeds';
 
 interface LeaderboardQueryRow {
   user_id: string;

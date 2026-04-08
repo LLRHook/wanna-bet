@@ -8,7 +8,6 @@ import { revokeAdmin } from '../../services/ElectionService';
 import { audit } from '../../services/AuditService';
 import { unregisterEmbed } from '../../ui/embeds';
 import { errorEmbed } from '../../ui/embeds';
-import { client } from '../../index';
 
 export const data = new SlashCommandBuilder()
   .setName('unregister')
@@ -43,7 +42,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   // Auto-revoke admin if applicable
   if (isAdmin) {
     revokeAdmin(db, guildId, userId);
-    await audit(db, client, {
+    audit(db, {
       guildId,
       actorId: userId,
       actionType: 'ADMIN_REVOKED',
@@ -55,7 +54,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     embeds: [unregisterEmbed(interaction.user, result.finalBalance ?? 0)],
   });
 
-  await audit(db, client, {
+  audit(db, {
     guildId,
     actorId: userId,
     actionType: 'PLAYER_UNREGISTER',

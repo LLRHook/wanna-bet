@@ -6,7 +6,7 @@ import {
 import { getDb } from '../../db/connection';
 import { ensureGuild } from '../../services/PlayerService';
 import { formatCents } from '../../services/BalanceService';
-import { COLORS } from '../../ui/colors';
+import { COLORS } from '../../ui/embeds';
 
 interface ActiveBetRow {
   bet_id: string;

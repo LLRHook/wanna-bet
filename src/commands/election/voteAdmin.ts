@@ -15,7 +15,7 @@ import {
 import { audit } from '../../services/AuditService';
 import { client } from '../../index';
 import { errorEmbed } from '../../ui/embeds';
-import { COLORS } from '../../ui/colors';
+import { COLORS } from '../../ui/embeds';
 
 export const data = new SlashCommandBuilder()
   .setName('vote-admin')
@@ -82,7 +82,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
     touchPlayer(db, guildId, userId);
 
-    await audit(db, client, {
+    audit(db, {
       guildId,
       actorId: userId,
       actionType: 'ELECTION_STARTED',

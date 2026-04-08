@@ -1,15 +1,38 @@
-import { EmbedBuilder, type User } from 'discord.js';
-import { COLORS } from './colors';
+import {
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  type User,
+} from 'discord.js';
 import { formatCents } from '../services/BalanceService';
 
 /**
- * Shared embed builder helpers.
- * All responses use rich embeds — no plain text strings.
+ * Consolidated UI helpers — colors, embeds, buttons, and the leaderboard table.
+ * Every user-facing response in the bot uses these helpers; no plain text.
  */
 
-/**
- * Creates a standard error embed (red).
- */
+// ─── Colors ─────────────────────────────────────────────────────────────────────
+
+export const COLORS = {
+  /** Pending bets, notifications */
+  GOLD: 0xffd700,
+  /** Win / success */
+  GREEN: 0x57f287,
+  /** Loss / error */
+  RED: 0xed4245,
+  /** Cancelled / neither / inactive */
+  GRAY: 0x95a5a6,
+  /** Admin actions / elections */
+  PURPLE: 0x9b59b6,
+  /** Info / balance / stats */
+  BLUE: 0x3498db,
+} as const;
+
+export type ColorKey = keyof typeof COLORS;
+
+// ─── Generic embed builders ─────────────────────────────────────────────────────
+
 export function errorEmbed(description: string): EmbedBuilder {
   return new EmbedBuilder()
     .setColor(COLORS.RED)
@@ -18,33 +41,20 @@ export function errorEmbed(description: string): EmbedBuilder {
     .setTimestamp();
 }
 
-/**
- * Creates a standard success embed (green).
- */
 export function successEmbed(title: string, description?: string): EmbedBuilder {
-  const embed = new EmbedBuilder()
-    .setColor(COLORS.GREEN)
-    .setTitle(title)
-    .setTimestamp();
+  const embed = new EmbedBuilder().setColor(COLORS.GREEN).setTitle(title).setTimestamp();
   if (description) embed.setDescription(description);
   return embed;
 }
 
-/**
- * Creates an info embed (blue).
- */
 export function infoEmbed(title: string, description?: string): EmbedBuilder {
-  const embed = new EmbedBuilder()
-    .setColor(COLORS.BLUE)
-    .setTitle(title)
-    .setTimestamp();
+  const embed = new EmbedBuilder().setColor(COLORS.BLUE).setTitle(title).setTimestamp();
   if (description) embed.setDescription(description);
   return embed;
 }
 
-/**
- * Creates a balance embed for a player.
- */
+// ─── Player-specific embeds ─────────────────────────────────────────────────────
+
 export function balanceEmbed(user: User, balanceCents: number): EmbedBuilder {
   return new EmbedBuilder()
     .setColor(COLORS.BLUE)
@@ -54,9 +64,6 @@ export function balanceEmbed(user: User, balanceCents: number): EmbedBuilder {
     .setTimestamp();
 }
 
-/**
- * Creates a registration embed.
- */
 export function registerEmbed(
   user: User,
   balanceCents: number,
@@ -78,9 +85,6 @@ export function registerEmbed(
     .setTimestamp();
 }
 
-/**
- * Creates a daily claim embed.
- */
 export function dailyEmbed(user: User, newBalanceCents: number): EmbedBuilder {
   return new EmbedBuilder()
     .setColor(COLORS.GREEN)
@@ -94,9 +98,6 @@ export function dailyEmbed(user: User, newBalanceCents: number): EmbedBuilder {
     .setTimestamp();
 }
 
-/**
- * Creates an unregister embed.
- */
 export function unregisterEmbed(user: User, finalBalanceCents: number): EmbedBuilder {
   return new EmbedBuilder()
     .setColor(COLORS.GRAY)
@@ -109,4 +110,95 @@ export function unregisterEmbed(user: User, finalBalanceCents: number): EmbedBui
       { name: 'Final Balance (preserved)', value: formatCents(finalBalanceCents), inline: true }
     )
     .setTimestamp();
+}
+
+// ─── Buttons ────────────────────────────────────────────────────────────────────
+
+/**
+ * Confirm / Dispute buttons for a bet resolution proposal.
+ * The custom_id encodes the bet ID for routing inside the message component collector.
+ */
+export function resolutionButtons(betId: string): ActionRowBuilder<ButtonBuilder> {
+  const confirmBtn = new ButtonBuilder()
+    .setCustomId(`resolution:confirm:${betId}`)
+    .setLabel('Confirm')
+    .setStyle(ButtonStyle.Success)
+    .setEmoji('✅');
+
+  const disputeBtn = new ButtonBuilder()
+    .setCustomId(`resolution:dispute:${betId}`)
+    .setLabel('Dispute')
+    .setStyle(ButtonStyle.Danger)
+    .setEmoji('❌');
+
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(confirmBtn, disputeBtn);
+}
+
+/**
+ * Previous / Next pagination buttons for paginated embeds (e.g. /history).
+ */
+export function paginationButtons(
+  page: number,
+  totalPages: number,
+  prefix: string
+): ActionRowBuilder<ButtonBuilder> {
+  const prevBtn = new ButtonBuilder()
+    .setCustomId(`${prefix}:prev:${page}`)
+    .setLabel('◀ Previous')
+    .setStyle(ButtonStyle.Secondary)
+    .setDisabled(page === 0);
+
+  const nextBtn = new ButtonBuilder()
+    .setCustomId(`${prefix}:next:${page}`)
+    .setLabel('Next ▶')
+    .setStyle(ButtonStyle.Secondary)
+    .setDisabled(page >= totalPages - 1);
+
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(prevBtn, nextBtn);
+}
+
+// ─── Leaderboard table ──────────────────────────────────────────────────────────
+
+export interface LeaderboardRow {
+  rank: number;
+  username: string;
+  balanceCents: number;
+  wins: number;
+  losses: number;
+}
+
+const COL_RANK = 3;
+const COL_PLAYER = 20;
+const COL_BALANCE = 10;
+const COL_WL = 8;
+
+function pad(str: string, width: number): string {
+  if (str.length >= width) return str.slice(0, width);
+  return str + ' '.repeat(width - str.length);
+}
+
+function padLeft(str: string, width: number): string {
+  if (str.length >= width) return str.slice(0, width);
+  return ' '.repeat(width - str.length) + str;
+}
+
+/**
+ * Builds a box-drawing leaderboard table wrapped in a Discord code block.
+ */
+export function buildLeaderboardTable(rows: LeaderboardRow[]): string {
+  const top    = `╔${'═'.repeat(COL_RANK + 2)}╦${'═'.repeat(COL_PLAYER + 2)}╦${'═'.repeat(COL_BALANCE + 2)}╦${'═'.repeat(COL_WL + 2)}╗`;
+  const header = `║ ${pad('#', COL_RANK)} ║ ${pad('Player', COL_PLAYER)} ║ ${padLeft('Balance', COL_BALANCE)} ║ ${padLeft('W/L', COL_WL)} ║`;
+  const divider= `╠${'═'.repeat(COL_RANK + 2)}╬${'═'.repeat(COL_PLAYER + 2)}╬${'═'.repeat(COL_BALANCE + 2)}╬${'═'.repeat(COL_WL + 2)}╣`;
+  const bottom = `╚${'═'.repeat(COL_RANK + 2)}╩${'═'.repeat(COL_PLAYER + 2)}╩${'═'.repeat(COL_BALANCE + 2)}╩${'═'.repeat(COL_WL + 2)}╝`;
+
+  const dataRows = rows.map((r) => {
+    const rankStr = String(r.rank);
+    const nameStr = r.username;
+    const balStr = formatCents(r.balanceCents);
+    const wlStr = `${r.wins}/${r.losses}`;
+    return `║ ${pad(rankStr, COL_RANK)} ║ ${pad(nameStr, COL_PLAYER)} ║ ${padLeft(balStr, COL_BALANCE)} ║ ${padLeft(wlStr, COL_WL)} ║`;
+  });
+
+  const tableLines = [top, header, divider, ...dataRows, bottom];
+  return '```\n' + tableLines.join('\n') + '\n```';
 }
