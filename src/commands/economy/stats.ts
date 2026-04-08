@@ -16,6 +16,7 @@ interface BetHistoryRow {
   side: string;
   stake: number;
   fee_paid: number;
+  payout_received: number | null;
   resolved_at: number | null;
 }
 
@@ -46,7 +47,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   const betRows = db
     .prepare<[string, string], BetHistoryRow>(
-      `SELECT b.bet_id, b.resolved_outcome, b.status, bp.side, bp.stake, bp.fee_paid, b.resolved_at
+      `SELECT b.bet_id, b.resolved_outcome, b.status, bp.side, bp.stake, bp.fee_paid, bp.payout_received, b.resolved_at
        FROM bet_participants bp
        JOIN bets b ON b.bet_id = bp.bet_id AND b.guild_id = bp.guild_id
        WHERE bp.guild_id = ? AND bp.user_id = ?
@@ -66,26 +67,24 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   for (const bet of resolvedBets) {
     const wager = bet.stake + bet.fee_paid;
+    const payout = bet.payout_received ?? 0;
+    const net = payout - wager;
+
     totalWagered += wager;
+    totalPayout += payout;
 
     if (bet.resolved_outcome === 'neither') {
       neithers++;
-      // Get back stake only; net = -fee_paid
-      totalPayout += bet.stake;
     } else if (bet.side === bet.resolved_outcome) {
       wins++;
-      // Need payout info — we approximate from stake (exact payout stored in balance changes)
-      // For stats, track net gain roughly
-      const netGain = bet.stake; // at minimum they got stake back (net gain tracked roughly)
-      if (netGain > biggestWin) biggestWin = netGain;
-      totalPayout += bet.stake; // at minimum
+      if (net > biggestWin) biggestWin = net;
     } else {
       losses++;
-      if (wager > biggestLoss) biggestLoss = wager;
+      if (-net > biggestLoss) biggestLoss = -net;
     }
   }
 
-  // Current streak
+  // Current streak (most recent → oldest, stops at first non-W/L outcome or break)
   let streak = 0;
   let streakType = '';
   for (const bet of resolvedBets) {
@@ -112,7 +111,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       { name: 'W / L / Neither', value: `${wins} / ${losses} / ${neithers}`, inline: true },
       { name: 'Total Wagered', value: formatCents(totalWagered), inline: true },
       { name: 'Net P/L', value: `${netPL >= 0 ? '+' : ''}${formatCents(netPL)}`, inline: true },
-      { name: 'Biggest Win (approx.)', value: formatCents(biggestWin), inline: true },
+      { name: 'Biggest Win', value: formatCents(biggestWin), inline: true },
       { name: 'Biggest Loss', value: formatCents(biggestLoss), inline: true },
       {
         name: 'Current Streak',

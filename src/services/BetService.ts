@@ -42,6 +42,7 @@ export interface ParticipantRow {
   side: 'A' | 'B';
   stake: number;
   fee_paid: number;
+  payout_received: number | null;
   joined_at: number;
 }
 
@@ -473,6 +474,13 @@ export function settleBet(
 
     const payouts: Array<{ userId: string; payout: number }> = [];
 
+    // Helper: record gross payout on the participant row for stats accounting.
+    // Losers who never get a payout call still get a payout_received=0 row update.
+    const recordPayout = db.prepare<[number, string, string, string]>(
+      `UPDATE bet_participants SET payout_received=?
+       WHERE bet_id=? AND guild_id=? AND user_id=?`
+    );
+
     if (outcome === 'neither') {
       // Each participant gets back their stake; fees stay in bank
       for (const p of participants) {
@@ -482,6 +490,7 @@ export function settleBet(
         });
         if (xfer.success) {
           payouts.push({ userId: p.user_id, payout: p.stake });
+          recordPayout.run(p.stake, betId, guildId, p.user_id);
         } else {
           logger.error({ betId, userId: p.user_id }, 'Failed to return stake on neither');
         }
@@ -503,6 +512,7 @@ export function settleBet(
           });
           if (xfer.success) {
             payouts.push({ userId: p.user_id, payout: p.stake });
+            recordPayout.run(p.stake, betId, guildId, p.user_id);
           }
         }
         return { success: true, payouts };
@@ -538,9 +548,15 @@ export function settleBet(
         });
         if (xfer.success) {
           payouts.push({ userId: participant.user_id, payout });
+          recordPayout.run(payout, betId, guildId, participant.user_id);
         } else {
           logger.error({ betId, userId: participant.user_id }, 'Failed payout on settlement');
         }
+      }
+
+      // Losers receive nothing — record 0 explicitly so stats can compute net P/L
+      for (const loser of losers) {
+        recordPayout.run(0, betId, guildId, loser.user_id);
       }
     }
 

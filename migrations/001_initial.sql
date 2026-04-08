@@ -90,14 +90,15 @@ CREATE INDEX IF NOT EXISTS idx_bets_creator
 -- ─── Bet Participants ─────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS bet_participants (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  bet_id     TEXT    NOT NULL,
-  guild_id   TEXT    NOT NULL,
-  user_id    TEXT    NOT NULL,
-  side       TEXT    NOT NULL CHECK(side IN ('A','B')),
-  stake      INTEGER NOT NULL,  -- cents; amount AFTER fee deducted (net into pool)
-  fee_paid   INTEGER NOT NULL,  -- cents; amount sent to bank at join time
-  joined_at  INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000),
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  bet_id          TEXT    NOT NULL,
+  guild_id        TEXT    NOT NULL,
+  user_id         TEXT    NOT NULL,
+  side            TEXT    NOT NULL CHECK(side IN ('A','B')),
+  stake           INTEGER NOT NULL,  -- cents; amount AFTER fee deducted (net into pool)
+  fee_paid        INTEGER NOT NULL,  -- cents; amount sent to bank at join time
+  payout_received INTEGER,           -- cents; gross amount returned to wallet at settlement (NULL until resolved)
+  joined_at       INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000),
   UNIQUE(bet_id, guild_id, user_id),
   FOREIGN KEY (bet_id, guild_id) REFERENCES bets(bet_id, guild_id)
 );
